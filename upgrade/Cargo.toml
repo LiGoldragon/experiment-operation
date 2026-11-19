@@ -1,0 +1,16 @@
+[package]
+name = "experiment-upgrade"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "=1.0.104"
+redb = "=4.3.0"
+rkyv = { version = "=0.8.18", default-features = false, features = ["std", "bytecheck", "little_endian", "pointer_width_32", "unaligned"] }
+ethos-zero = { git = "https://github.com/LiGoldragon/ethos-zero", rev = "1976e45fe1edfd5676cb33919dba1ec20c785a02" }
+datom-codec = { git = "https://github.com/LiGoldragon/datom-codec", rev = "09a0526", features = ["rkyv"] }
+protos = { git = "https://github.com/LiGoldragon/protos", rev = "c93b598", features = ["rkyv"] }
+tempfile = "=3.27.0"
+
+[lints.rust]
+unsafe_code = "forbid"

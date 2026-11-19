@@ -1,0 +1,4 @@
+Memory
+[]
+[ Account.{ Name.String Balance.Integer Status }
+  Status.[ Open Frozen Closed ] ]
