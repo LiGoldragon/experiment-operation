@@ -94,3 +94,58 @@ async fn persisted_hold_is_removed_before_startup_returns() {
     );
     assert!(reopened.hold(Take(account())).await.is_ok());
 }
+
+struct InterruptedTake {
+    entered: tokio::sync::oneshot::Sender<()>,
+    release: std::sync::mpsc::Receiver<()>,
+}
+impl TraceObject<NexusDomain> for InterruptedTake {
+    fn object(&self) -> Object {
+        Object::Create(Create { account: account() })
+    }
+}
+impl Changeable<NexusDomain> for InterruptedTake {
+    type Yield = Account;
+    fn change(self, m: &mut Transaction<NexusDomain>) -> Result<Account, Refusal> {
+        m.remember_held(account())?;
+        self.entered.send(()).unwrap();
+        self.release.recv().unwrap();
+        Ok(account())
+    }
+}
+#[tokio::test]
+async fn cancellation_before_acquisition_reply_has_no_ownership_gap() {
+    let dir = tempfile::tempdir().unwrap();
+    let scope = Scope::<NexusDomain>::open(
+        dir.path().join("memory"),
+        configuration(),
+        TraceHub::open(8192),
+    )
+    .await
+    .unwrap();
+    let (entered, wait) = tokio::sync::oneshot::channel();
+    let (release, blocked) = std::sync::mpsc::channel();
+    let child = scope.clone();
+    let task = tokio::spawn(async move {
+        child
+            .hold(InterruptedTake {
+                entered,
+                release: blocked,
+            })
+            .await
+    });
+    wait.await.unwrap();
+    task.abort();
+    assert!(task.await.is_err());
+    release.send(()).unwrap();
+    // Owner FIFO places this inspection after the acquisition and its queued cleanup.
+    assert!(
+        scope
+            .run(Inspect {
+                name: account().name
+            })
+            .await
+            .is_err()
+    );
+    assert!(scope.hold(Take(account())).await.is_ok());
+}

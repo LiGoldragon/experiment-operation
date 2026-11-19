@@ -1,6 +1,9 @@
 # Operation experiment
 
-The current revision-2 trial is [`pass-two`](pass-two/README.md): one ledger machine with transactional changes, asynchronous attempts, a traced schema upgrade and two subscription-holder implementations. The earlier crates remain as pass-1 evidence.
+The current trial is [pass four](pass-three/README.md), retained in the original
+`pass-three/` consumer paths: generated whole attempts and changes, attempt-owned
+Memory records, open lock exchanges, and process-death recovery. Earlier passes
+remain historical evidence in their own crates.
 
 ## Pass 1
 

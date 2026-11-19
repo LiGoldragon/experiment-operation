@@ -177,45 +177,18 @@ impl Operable<NexusDomain> for Remitting {
         Ok(outcome)
     }
 }
-impl Operable<NexusDomain> for Reservation {
-    type Outcome = Result<PayOutcome, Refusal>;
+impl Operable<NexusDomain> for Observing {
+    type Outcome = Result<RemitOutcome, Refusal>;
     async fn operate(self, s: &Runtime) -> Self::Outcome {
         let path = s.configuration.lock().unwrap().translator_socket.clone();
-        let observed = s
-            .ask::<_, RemitOutcome>(
-                &path,
-                SIGNAL_FINGERPRINT,
-                WorldInput::Status(Status {
-                    reservation_id: self.reservation_id.clone(),
-                }),
-            )
-            .await?;
-        let outcome = match observed {
-            RemitOutcome::Unknown => {
-                s.run(Remitting {
-                    reservation: self.clone(),
-                })
-                .await?
-            }
-            known => known,
-        };
-        match outcome {
-            RemitOutcome::Remitted => {
-                s.run(Settle {
-                    reservation_id: self.reservation_id,
-                })
-                .await?;
-                Ok(PayOutcome::Paid)
-            }
-            RemitOutcome::Unremitted(code) => {
-                s.run(Release {
-                    reservation_id: self.reservation_id,
-                })
-                .await?;
-                Ok(PayOutcome::Unpaid(code))
-            }
-            RemitOutcome::Unknown => Err(Refused::Invalid.into()),
-        }
+        Ok(s.ask::<_, RemitOutcome>(
+            &path,
+            SIGNAL_FINGERPRINT,
+            WorldInput::Status(Status {
+                reservation_id: self.reservation.reservation_id,
+            }),
+        )
+        .await?)
     }
 }
 impl Operable<NexusDomain> for Subscribe {

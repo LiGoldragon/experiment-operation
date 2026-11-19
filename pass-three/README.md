@@ -1,74 +1,87 @@
-# Pass three: author surface trial
+# Pass four: whole attempts and attempt-owned holding
 
-`operation-scope` owns the execution library. `trial-ledger` and `trial-lock`
-are consumers generated at build time from their four `ethos/` files by
-`experiment-upgrade` beside Ethos Zero. No actor crate is in their normal
-runtime dependency trees. Earlier passes remain evidence in their own crates.
+This directory keeps its pass-three path so earlier consumers stay in place.
+The current trial implements Attempt.1 proposals 3, 4, 5 and 7. Earlier runtime
+passes remain separate evidence elsewhere in the workspace.
 
-Each consumer's `build.rs` selects schema files and explicit generator policy,
-then emits `OUT_DIR/nexus.rs`. Bodies implement generated vocabulary against
-shared traits. Generated code supplies Wire, record identity, fingerprints,
-Object/Outcome, Upgrade, historical types, serving dispatch, resumable startup
-and the optional ordinary/meta/debug textual tools. `Cargo.toml`, `build.rs`,
-`lib.rs`, the ledger's Finishing trait and world-stub scaffolding remain authored
-beyond Ethos and bodies; the trial report measures them rather than hiding them.
+`operation-scope` owns execution, transactional Memory, binary connections and
+trace delivery. `trial-ledger` and `trial-lock` consume `experiment-upgrade`'s
+build-time generator beside Ethos Zero. Their four `ethos/` files generate
+`OUT_DIR/nexus.rs`; no text reader is linked into the ordinary runtime.
 
-## Processes and bootstrap
+## What is generated
 
-The ordinary Nexus mains are one line. A Nexus reads one binary archived
-`operation_scope::LaunchConfiguration` file, whose path is its sole argument.
-The generated text client and meta client take that path then one datom; the
-debug translator takes that path alone. This is a bootstrap limitation, not
-Place/XDG resolution or a datom-only production CLI. The trace feature binds
-its trace socket first and waits for the debugger before opening Memory.
-The trace-only build needs no text dependencies. Text tools require `datom`.
+Operation has imports, whole attempts, body-bearing attempts, their outcomes,
+and types. A whole attempt's input type is declared separately in types. Memory
+keeps its five sections; a change whose name also has a separately declared
+input shape is interpreted as a composition. The generator reports missing or
+ambiguous typed inputs before returning generated Rust.
 
-Configuration carries frame, command, trace and subscription limits, peer paths,
-and deterministic failure-boundary settings. Meta changes frame/subscription
-limits and peer paths one value at a time. Command/trace channel allocations
-are startup-only; attempted resizing is refused. Configuration is not persisted
-or subscribed to yet. These are explicit remaining departures from revision 3.
+Pay, Reservation recovery, Acknowledge and Lock are whole attempts. Transfer
+is a whole change over Withdraw and Deposit; both run in the same transaction.
+Branches follow typed outcomes. Domain refusals propagate through the root;
+an unmatched outcome needs a same-name Refused variant. Explicit call variations
+convert the distinct From/To scalar wrappers to Name for Transfer.
 
-A subscriber receives the initial record and sends a typed `SubscriptionDemand`
-for each subsequent read. The owner retains one watch value per subscribed key;
-newer commits replace an unread value. This demand boundary prevents a server
-from queuing old snapshots in a socket while its peer is not reading.
+Generation policy still supplies resumable records, fallible and held call
+associations and subscription bindings. Leaf bodies still include their Rust
+impl headers and associated yields. This remains a bounded adapter rather than
+an implementation of the full proposed Ethos language.
 
-## Durable world stub
+## Holding and outputs
 
-`trial-world` is a separate translator process, with its own redb journal.
-Remit and Status greet and cross checked binary sockets. An identity is the
-journal's unique key; outcome creation and insertion are one write transaction,
-and a repeated call returns that outcome. The bounded model equates the external
-effect with this atomic journal insertion. A real payment provider that commits
-its effect separately needs that provider's own idempotency guarantee.
+`Holding::hold` establishes an owner guard before submitting a leaf change.
+`Transaction::remember_held` stores the record and its owner-index entry in the
+same commit. Dropping the guard queues removal on that same store owner. A
+cancelled acquisition therefore also cleans up if its commit already happened.
+Opening Memory removes every owner-indexed record before startup completes.
+The owner index, rather than a field of each domain record, holds its runtime
+owner number. Historical records without an owner-index entry retain their
+historical non-held semantics.
 
-Reserve debits and keeps Reservation. Settle keeps Payment (including account)
-and removes Reservation. Refund also keeps Payment, retaining identity and lock
-recovery. Startup resumes Reservations then completed Payments before inputs;
-completed records release orphaned locks after a death between settlement and
-lock release. Completed records remain for duplicate detection and are scanned
-on restart; this is an intentionally bounded ledger, not a retention policy.
+Lock has one input, Lock, and no Release input. Its whole attempt takes a
+held record, emits Locked, and awaits the end of its connection. The ledger's
+AcquireLock translation retains the checked binary exchange in a Held value;
+the generated Pay keeps it in a local position through settlement or refusal.
+Peer EOF ends the lock attempt and releases its record. The server observes EOF
+as an event, with no expiry or retry loop.
 
-The lock has a generated historical migration from one-field HeldLock to its
-current added Integer field. The owner upgrades records and stamp atomically,
-and publishes Upgrade's root yield after the enclosing commit. Unknown stamps
-refuse before reading records. The ledger currently has no historical chain.
+An output position emits a framed Signal reply while dispatch is still running.
+The runtime suppresses a duplicate final reply. Acknowledge emits Acknowledged,
+then runs Tail; a deterministic observer barrier and its trace demonstrate
+that the caller already has its answer while Tail is still alive.
 
-## Evidence and reproduction
+## Recovery and evidence
 
-All compilation runs on the configured builder. Cargo source probes use the
-build-base toolchain. The committed-revision Nix gate is the release gate.
-Consumer scenarios cover poisoned nested refusal, serialized roots, partial
-transfer rollback, one latest state after 1000 changes (in-process and socket),
-commit-failure caller/trace agreement, mismatched greeting, nine controlled
-ledger/world death/restart cases, duplicate identities, actual historical-store
-upgrade and unknown-schema refusal. The world journal is inspected independently
-for exactly one outcome entry. Fault barriers are connection events, not polling.
+Reserve atomically debits and keeps Reservation. Settle or refund keeps Payment
+and removes Reservation. Startup runs the generated Reservation attempt before
+accepting inputs: Status, then settle/refund or idempotent Remit if Unknown.
+Completed Payments retain duplicate identity but need no lock-release recovery.
 
-The commit-failure scenario injects a refusal at the commit boundary, before
-redb commit, and verifies rollback and root trace; it is not a disk-failure test.
-The process scenarios kill real processes but do not simulate power loss during
-redb commit. Debugger disconnect ends a tracing Nexus. Ordinary builds suppress
-trace publication, but currently retain generic trace contexts and object
-conversions; complete compile-time removal of that machinery remains open.
+The world translator is its own process and redb journal. Atomic journal
+insertion is the model's payment effect; a repeated identity returns the
+previous result. A real provider needs its own idempotency guarantee.
+
+The kill matrix covers ten boundaries, from before Lock through after Settle,
+ledger-primary and world-primary deaths, successful and failed payments where
+the boundary is reachable: 36 cases. World-primary cases also stop the ledger;
+ledger-primary cases at world-owned barriers also stop the world. Every case
+checks removal and reacquisition of the account lock before recovery, correct
+balance, specific Duplicate refusal, and exactly one world journal entry.
+Before Reserve, no durable request exists: restart first retains the original
+balance, then an explicit caller retry pays once. A separate process test kills
+the lock owner itself and proves its persisted holding is purged on startup.
+
+## Retained boundaries
+
+Bootstrap still takes one binary LaunchConfiguration file path, not Place/XDG
+resolution. Text clients take that path plus datom. Tracing startup waits for
+its debugger before opening Memory. Limits and peer paths are configuration;
+channel allocations remain startup-only. Configuration persistence/subscription,
+full compile-time removal of ordinary trace contexts, provider-side effects
+separate from journal insertion, power loss during redb commit, competing ledger
+owners, retention and sustained load remain outside this experiment.
+
+Tests stay beside the trial as inherited experiment evidence; separate test
+repositories have not been introduced in this pass. All compilation and the
+committed-revision Nix gate run on the configured builder.
