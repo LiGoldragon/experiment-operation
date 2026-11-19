@@ -1,0 +1,8 @@
+Memory
+[]
+[ Account.{ String Integer }
+  Reservation.{ String String Integer }
+  Detail.{ String Integer }
+  State.[ Active.Detail
+          Idle.String ]
+  Envelope.{ Integer Vector<Detail> Option<Detail> Detail State Boolean String } ]

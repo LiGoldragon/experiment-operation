@@ -1,0 +1,26 @@
+Library
+[]
+[ RecordName.String
+  FieldName.String
+  FieldBody.String
+  DefaultBody.String
+  VariantName.String
+  FromFieldName.String
+  ToFieldName.String
+  FromRecordName.String
+  ToRecordName.String
+  ReplacementVariantName.String
+  Fingerprint.String
+  OriginalMemory.String
+  Edit.[
+     AddField.{ RecordName FieldName FieldBody DefaultBody }
+     RemoveField.{ RecordName FieldName }
+     RenameField.{ RecordName FromFieldName ToFieldName }
+     RenameRecord.{ FromRecordName ToRecordName }
+     AddVariant.{ RecordName VariantName FieldBody }
+     RemoveVariant.{ RecordName VariantName ReplacementVariantName }
+     Reshape.{ RecordName FieldBody DefaultBody } ]
+  Step.{ Fingerprint Vector<Edit> }
+  Manifest.{ OriginalMemory Fingerprint Vector<Step> } ]
+[]
+[]

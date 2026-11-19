@@ -1,0 +1,12 @@
+{ «Memory
+[]
+[ Account.{ String Integer }
+  Reservation.{ String String Integer }
+  Detail.{ String Integer }
+  State.[ Active.Detail Idle.String ]
+  Envelope.{ Integer Vector<Detail> Option<Detail> Detail State } ]
+»
+  8098d335fd12e5a1b2c6e280923bff632f1f40c36677e2573588320e19e0b46e
+  [ { df0572b2f4c0626b40e55713190dbd65e3a6d7aea105ded06c73bf20c3129d67
+      [ AddField.{ Envelope Boolean Boolean true }
+        AddField.{ Envelope String String «String::from("upgraded")» } ] } ] }
