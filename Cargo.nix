@@ -572,7 +572,7 @@ rec {
       };
       "experiment-upgrade" = rec {
         crateName = "experiment-upgrade";
-        version = "0.3.0";
+        version = "0.4.0";
         edition = "2024";
         crateBin = [
           {
@@ -1504,7 +1504,7 @@ rec {
       };
       "operation-scope" = rec {
         crateName = "operation-scope";
-        version = "0.3.0";
+        version = "0.4.0";
         edition = "2024";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./pass-three/scope-library; };
         libName = "operation_scope";
@@ -2695,7 +2695,7 @@ rec {
       };
       "trial-ledger" = rec {
         crateName = "trial-ledger";
-        version = "0.3.0";
+        version = "0.4.0";
         edition = "2024";
         crateBin = [
           {
@@ -2779,7 +2779,7 @@ rec {
       };
       "trial-lock" = rec {
         crateName = "trial-lock";
-        version = "0.3.0";
+        version = "0.4.0";
         edition = "2024";
         crateBin = [
           {
