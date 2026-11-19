@@ -64,3 +64,36 @@ This crate is an upgrade library and offline tool, not a running Nexus, and its
 integration tests are colocated for this experiment. It does not yet join the
 ledger's Scope, run or tracing path. Store opening and upgrading are explicit
 calls so callers control when the migration transaction runs.
+
+## Pass-three Nexus generation
+
+`NexusSchema::generate_nexus_with(&GenerationPolicy)` adapts four complete
+Ethos files into one checked namespace and emits types, binary codecs, identity,
+trace, dispatch, startup, fingerprints, and optional text entry points. It lives
+beside Ethos Zero: that crate still checks and emits every authored declaration.
+`GeneratedSource::rust_source` joins its outputs for a consumer's build script.
+The explicit policy selects resumable records, fallible attempts, subscriptions,
+and an optional typed `memory_history::MemoryHistory`. These selections remain
+outside Ethos because the trial roots have no associations surface.
+
+`memory-manifest init <bundle> <memory-file>` initializes the new typed history;
+`memory-manifest edit <bundle> '<edits-datom>'` appends one atomic step. It accepts
+the five-section Memory and the two-section storage projection. Immutable
+Memory/manifest generations are synced before one `current` symlink changes;
+a reader resolves that symlink once. A writer killed while holding `writer-lock`
+requires explicit recovery. This bootstrap tool still uses ordinary arguments.
+
+Historical types and conversions come from the manifest, not handwritten
+copies. The generated Upgrade runs in the store owner's first transaction;
+its records and the final stamp commit together. It checks identities, validates
+archives, refuses unknown stamps and refuses a manifest that revisits a schema.
+Rename edits, imported/recursive conversions, inline historical field types,
+and more than four equal field types remain outside the checked subset.
+Default and Reshape bodies are Rust expressions checked when generated Rust
+compiles; publishing the manifest does not compile those expressions.
+
+The adapter presently requires a self-contained combined namespace, bare Signal
+variants paired positionally, and at least two inputs and outputs. Generated
+`Output::Runtime` adds the common runtime refusal. Ordinary binary dependencies
+contain no codec: Client, MetaClient and Debugger are gated by `datom` and take
+the binary launch-configuration path before their datom (debugger: path alone).

@@ -1,7 +1,11 @@
 [package]
 name = "experiment-upgrade"
-version = "0.1.0"
+version = "0.3.0"
 edition = "2024"
+
+[features]
+default = ["datom"]
+datom = []
 
 [dependencies]
 anyhow = "=1.0.104"
@@ -11,6 +15,8 @@ ethos-zero = { git = "https://github.com/LiGoldragon/ethos-zero", rev = "1976e45
 datom-codec = { git = "https://github.com/LiGoldragon/datom-codec", rev = "09a0526", features = ["rkyv"] }
 protos = { git = "https://github.com/LiGoldragon/protos", rev = "c93b598", features = ["rkyv"] }
 tempfile = "=3.27.0"
+
+sha2 = "=0.10.9"
 
 [lints.rust]
 unsafe_code = "forbid"
