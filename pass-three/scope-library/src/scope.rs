@@ -21,9 +21,9 @@ pub struct Configuration {
     pub observer_socket: String,
     pub pause_at: Option<Boundary>,
 }
-type Job<D> = Box<dyn FnOnce(&mut Owner<D>) + Send>;
+pub(crate) type Job<D> = Box<dyn FnOnce(&mut Owner<D>) + Send>;
 pub(crate) struct Owner<D: Domain> {
-    stopped: bool,
+    pub(crate) stopped: bool,
     pub database: Database,
     pub subscribers: HashMap<Vec<u8>, watch::Sender<Option<Vec<u8>>>>,
     pub fail_commit: Arc<AtomicBool>,
@@ -32,12 +32,15 @@ pub(crate) struct Owner<D: Domain> {
 }
 #[derive(Clone)]
 pub struct Scope<D: Domain> {
-    sender: std::sync::mpsc::SyncSender<Job<D>>,
+    pub(crate) sender: std::sync::mpsc::SyncSender<Job<D>>,
     pub configuration: Arc<Mutex<Configuration>>,
     pub traces: TraceHub<D>,
     pub context: Option<TraceContext<D>>,
     pub fail_commit: Arc<AtomicBool>,
     pub dead: watch::Receiver<bool>,
+    pub(crate) held_owner: Option<u64>,
+    pub(crate) holding_sequence: Arc<std::sync::atomic::AtomicU64>,
+    pub(crate) output_sink: Option<OutputSink>,
 }
 pub trait ScopeOpening<D: Domain>: Sized {
     fn open(
@@ -72,6 +75,9 @@ impl<D: Domain> ScopeOpening<D> for Scope<D> {
             context: None,
             fail_commit: fail_commit.clone(),
             dead,
+            held_owner: None,
+            holding_sequence: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            output_sink: None,
         };
         std::thread::spawn(move || {
             // A panic drops the liveness sender; serving treats that as fatal too.
@@ -81,6 +87,7 @@ impl<D: Domain> ScopeOpening<D> for Scope<D> {
                 if let Err(failure) = tx.schema() {
                     return Err(tx.abort(failure));
                 }
+                tx.end_holding(None)?;
                 tx.commit()?;
                 Ok::<_, Failure>(Owner {
                     stopped: false,
@@ -125,6 +132,7 @@ where
     async fn change<C: Changeable<D>>(&self, change: C) -> Result<C::Yield, D::Refusal> {
         let (reply, wait) = oneshot::channel();
         let context = self.context.clone().unwrap_or_else(|| self.traces.root());
+        let held_owner = self.held_owner;
         self.sender
             .send(Box::new(move |owner| {
                 // Root yield belongs to the commit, not the body's earlier success.
@@ -132,6 +140,7 @@ where
                 let result = (|| {
                     let mut tx = Transaction::<D>::begin(&owner.database, guard.context.clone())
                         .map_err(D::Refusal::from)?;
+                    tx.held_owner = held_owner;
                     let result = change.change(&mut tx);
                     let value = match tx.refusal {
                         Some(ref r) => return Err(r.clone()),
@@ -269,6 +278,9 @@ where
     derive(datom_codec::Datomizable, datom_codec::Composing)
 )]
 pub enum Boundary {
+    BeforeReserve,
+    BeforeLock,
+    AfterLock,
     Reserved,
     BeforeCall,
     BeforeJournal,

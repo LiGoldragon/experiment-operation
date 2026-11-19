@@ -3,12 +3,14 @@ use redb::{Database, ReadableTable, TableDefinition, WriteTransaction};
 use std::collections::HashMap;
 use std::marker::PhantomData;
 const RECORDS: TableDefinition<&[u8], &[u8]> = TableDefinition::new("records");
+const HOLDINGS: TableDefinition<&[u8], u64> = TableDefinition::new("holdings");
 const METADATA: TableDefinition<&str, &[u8]> = TableDefinition::new("metadata");
 pub trait Memorizable: Wire {
     const TABLE: &'static str;
     fn identity(&self) -> Vec<u8>;
 }
 pub struct Transaction<D: Domain> {
+    pub(crate) held_owner: Option<u64>,
     pub(crate) write: WriteTransaction,
     pub(crate) changed: HashMap<Vec<u8>, Option<Vec<u8>>>,
     pub(crate) refusal: Option<D::Refusal>,
@@ -32,6 +34,7 @@ pub trait TransactionOpening<D: Domain> {
 impl<D: Domain> TransactionOpening<D> for Transaction<D> {
     fn begin(database: &Database, trace: TraceContext<D>) -> Result<Self, Failure> {
         Ok(Self {
+            held_owner: None,
             write: database.begin_write().map_err(|_| Failure::Unstored)?,
             changed: HashMap::new(),
             refusal: None,
@@ -256,5 +259,49 @@ impl<D: Domain> TransactionCommitting for Transaction<D> {
             guard.yielded(failure.clone().into());
         }
         failure
+    }
+}
+
+impl<D: Domain> Transaction<D> {
+    pub fn remember_held<R: Memorizable>(&mut self, record: R) -> Result<(), Failure> {
+        let owner = self.held_owner.ok_or(Failure::Stopped)?;
+        let key = R::key(&record.identity());
+        self.remember(record)?;
+        self.write
+            .open_table(HOLDINGS)
+            .map_err(|_| Failure::Unstored)?
+            .insert(key.as_slice(), owner)
+            .map_err(|_| Failure::Unstored)?;
+        Ok(())
+    }
+    pub(crate) fn end_holding(&mut self, owner: Option<u64>) -> Result<(), Failure> {
+        let keys = {
+            let holdings = self
+                .write
+                .open_table(HOLDINGS)
+                .map_err(|_| Failure::Unstored)?;
+            let mut keys = Vec::new();
+            for item in holdings.iter().map_err(|_| Failure::Unstored)? {
+                let (key, value) = item.map_err(|_| Failure::Unstored)?;
+                if owner.is_none_or(|owner| owner == value.value()) {
+                    keys.push(key.value().to_vec());
+                }
+            }
+            keys
+        };
+        for key in keys {
+            self.write
+                .open_table(RECORDS)
+                .map_err(|_| Failure::Unstored)?
+                .remove(key.as_slice())
+                .map_err(|_| Failure::Unstored)?;
+            self.write
+                .open_table(HOLDINGS)
+                .map_err(|_| Failure::Unstored)?
+                .remove(key.as_slice())
+                .map_err(|_| Failure::Unstored)?;
+            self.changed.insert(key, None);
+        }
+        Ok(())
     }
 }

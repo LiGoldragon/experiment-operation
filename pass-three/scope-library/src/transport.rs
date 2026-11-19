@@ -161,8 +161,25 @@ impl<D: Domain> SocketServing<D> for Scope<D> {
                         let greeting=if received==D::SIGNAL_FINGERPRINT {Greeting::Greeted}else{Greeting::Refused{received,expected:D::SIGNAL_FINGERPRINT}};
                         stream.write_frame(&greeting.encode()?,limit).await?;if !matches!(greeting,Greeting::Greeted){return Ok::<_,Failure>(())}
                         loop {let limit=scope.configuration.lock().unwrap().max_frame;let input=S::Input::decode(&stream.read_frame(limit).await?)?;
-                            match service.dispatch(input,&scope).await? {
+                            let (emissions,mut pending)=tokio::sync::mpsc::channel(scope.configuration.lock().unwrap().command_capacity as usize);
+                            let child=Scope {output_sink:Some(std::sync::Arc::new(tokio::sync::Mutex::new(emissions))),..scope.clone()};
+                            let dispatched=service.dispatch(input,&child);
+                            tokio::pin!(dispatched);
+                            let delivery=loop {tokio::select! {
+                                value=&mut dispatched=>break value?,
+                                Some(bytes)=pending.recv()=>stream.write_frame(&bytes,limit).await?,
+                            }};
+                            while let Ok(bytes)=pending.try_recv() {stream.write_frame(&bytes,limit).await?;}
+                            match delivery {
                                 Delivery::Reply(output)=>stream.write_frame(&output.encode()?,limit).await?,
+                                Delivery::Held{output,hold}=>{
+                                    stream.write_frame(&output.encode()?,limit).await?;
+                                    let mut byte=[0u8];
+                                    let _=tokio::io::AsyncReadExt::read(&mut stream,&mut byte).await;
+                                    drop(hold);
+                                    return Ok(());
+                                }
+                                Delivery::Emitted=>(),
                                 Delivery::Stream{mut receiver,map,lifecycle}=>{
                                     let _lifecycle=StreamLifecycle(lifecycle.clone());
                                     let initial=receiver.borrow_and_update().clone().ok_or(Failure::Wire)?;
@@ -227,6 +244,11 @@ impl<D: Domain> SocketServing<D> for Scope<D> {
 }
 
 pub enum Delivery<O: Wire> {
+    Held {
+        output: O,
+        hold: Held<()>,
+    },
+    Emitted,
     Reply(O),
     Stream {
         receiver: tokio::sync::watch::Receiver<Option<Vec<u8>>>,
