@@ -128,7 +128,16 @@ async fn try_call(root: &Path, input: Input) -> Result<Output, Failure> {
 async fn call(root: &Path, input: Input) -> Output {
     try_call(root, input).await.unwrap()
 }
-async fn locks(root: &Path) -> tokio::task::JoinHandle<()> {
+struct LockMachine {
+    task: tokio::task::JoinHandle<()>,
+    scope: Scope<trial_lock::NexusDomain>,
+}
+impl LockMachine {
+    fn abort(self) {
+        self.task.abort();
+    }
+}
+async fn locks(root: &Path) -> LockMachine {
     let scope = Scope::<trial_lock::NexusDomain>::open(
         root.join("lock.memory"),
         config(root, None),
@@ -137,9 +146,11 @@ async fn locks(root: &Path) -> tokio::task::JoinHandle<()> {
     .await
     .unwrap();
     let listener = UnixListener::bind(root.join("lock.sock")).unwrap();
-    tokio::spawn(async move {
-        let _ = scope.serve(listener, trial_lock::Nexus).await;
-    })
+    let serving = scope.clone();
+    let task = tokio::spawn(async move {
+        let _ = serving.serve(listener, trial_lock::Nexus).await;
+    });
+    LockMachine { task, scope }
 }
 async fn seed(root: &Path) {
     assert!(matches!(
@@ -195,102 +206,114 @@ async fn mismatched_greeting_refuses_before_reading_input() {
     assert!(stream.read_frame(LIMIT).await.is_err());
     locks.abort();
 }
+fn payment() -> Input {
+    Input::Pay(Pay {
+        reservation: Reservation {
+            reservation_id: ReservationId("once".into()),
+            name: Name("alice".into()),
+            amount: Amount(5),
+        },
+    })
+}
 #[tokio::test]
-async fn kill_ledger_at_each_boundary_and_resume_before_inputs() {
+async fn kill_matrix_from_before_lock_through_settlement() {
+    let mut cases = 0;
     for pause in [
+        Boundary::BeforeLock,
+        Boundary::AfterLock,
+        Boundary::BeforeReserve,
         Boundary::Reserved,
         Boundary::BeforeCall,
+        Boundary::BeforeJournal,
+        Boundary::AfterJournal,
         Boundary::AfterReply,
         Boundary::BeforeSettle,
         Boundary::AfterSettle,
     ] {
-        let dir = tempfile::tempdir().unwrap();
-        let root = dir.path().to_path_buf();
-        let locks = locks(&root).await;
-        let world = world(&root, None, true).await;
-        let observer = UnixListener::bind(root.join("observer.sock")).unwrap();
-        let machine = ledger(&root, Some(pause.clone())).await;
-        seed(&root).await;
-        let calling = root.clone();
-        let pay = tokio::spawn(async move {
-            try_call(
-                &calling,
-                Input::Pay(Pay {
-                    reservation: Reservation {
-                        reservation_id: ReservationId("once".into()),
-                        name: Name("alice".into()),
-                        amount: Amount(5),
-                    },
-                }),
-            )
-            .await
-        });
-        let _barrier = boundary(&observer, pause).await;
-        machine.stop().await;
-        pay.abort();
-        let machine = ledger(&root, None).await;
-        assert_eq!(balance(&root).await, 7);
-        // Settled identifiers are retained, so a retry cannot debit or remit again.
-        assert!(matches!(
-            call(
-                &root,
-                Input::Pay(Pay {
-                    reservation: Reservation {
-                        reservation_id: ReservationId("once".into()),
-                        name: Name("alice".into()),
-                        amount: Amount(5)
+        for kill_world in [false, true] {
+            for succeeds in [true, false] {
+                if !succeeds && matches!(pause, Boundary::BeforeSettle | Boundary::AfterSettle) {
+                    continue;
+                }
+                let dir = tempfile::tempdir().unwrap();
+                let root = dir.path().to_path_buf();
+                let locks = locks(&root).await;
+                let world_boundary =
+                    matches!(pause, Boundary::BeforeJournal | Boundary::AfterJournal);
+                let observer = UnixListener::bind(root.join("observer.sock")).unwrap();
+                let translator =
+                    world(&root, world_boundary.then_some(pause.clone()), succeeds).await;
+                let machine = ledger(&root, (!world_boundary).then_some(pause.clone())).await;
+                seed(&root).await;
+                let calling = root.clone();
+                let pay = tokio::spawn(async move { try_call(&calling, payment()).await });
+                let _barrier = boundary(&observer, pause.clone()).await;
+                let mut held = locks
+                    .scope
+                    .subscribe::<trial_lock::HeldLock>(
+                        trial_lock::LockName("alice".into()).encode().unwrap(),
+                    )
+                    .await
+                    .unwrap();
+                let had_lock = held.latest().unwrap().is_some();
+                // The world-primary cases restart the ledger too, as in pass three.
+                let translator = if kill_world {
+                    translator.stop().await;
+                    machine.stop().await;
+                    world(&root, None, succeeds).await
+                } else {
+                    machine.stop().await;
+                    if world_boundary {
+                        translator.stop().await;
+                        world(&root, None, succeeds).await
+                    } else {
+                        translator
                     }
-                })
-            )
-            .await,
-            Output::Refused(Refused::Duplicate(_))
-        ));
-        machine.stop().await;
-        world.stop().await;
-        let journal = Journal::open(&root.join("world.memory").display().to_string()).unwrap();
-        assert_eq!(journal.entries().unwrap(), 1);
-        locks.abort();
-    }
-}
-#[tokio::test]
-async fn kill_world_before_and_after_journal_then_restart_both() {
-    for pause in [Boundary::BeforeJournal, Boundary::AfterJournal] {
-        for succeeds in [true, false] {
-            let dir = tempfile::tempdir().unwrap();
-            let root = dir.path().to_path_buf();
-            let locks = locks(&root).await;
-            let observer = UnixListener::bind(root.join("observer.sock")).unwrap();
-            let translator = world(&root, Some(pause.clone()), succeeds).await;
-            let machine = ledger(&root, None).await;
-            seed(&root).await;
-            let calling = root.clone();
-            let pay = tokio::spawn(async move {
-                try_call(
-                    &calling,
-                    Input::Pay(Pay {
-                        reservation: Reservation {
-                            reservation_id: ReservationId("once".into()),
-                            name: Name("alice".into()),
-                            amount: Amount(5),
-                        },
-                    }),
-                )
-                .await
-            });
-            let _barrier = boundary(&observer, pause.clone()).await;
-            translator.stop().await;
-            machine.stop().await;
-            pay.abort();
-            let translator = world(&root, None, succeeds).await;
-            let machine = ledger(&root, None).await;
-            assert_eq!(balance(&root).await, if succeeds { 7 } else { 12 });
-            machine.stop().await;
-            translator.stop().await;
-            let journal = Journal::open(&root.join("world.memory").display().to_string()).unwrap();
-            assert_eq!(journal.entries().unwrap(), 1);
-            locks.abort();
+                };
+                pay.abort();
+                if had_lock {
+                    assert!(held.changed().await.unwrap().is_none(), "{pause:?}");
+                }
+                assert!(held.latest().unwrap().is_none());
+                // Independently acquire the actual named lock after every death.
+                let grant = locks
+                    .scope
+                    .hold(trial_lock::TakeLock {
+                        lock_name: trial_lock::LockName("alice".into()),
+                    })
+                    .await
+                    .unwrap();
+                assert!(held.changed().await.unwrap().is_some());
+                drop(grant);
+                assert!(held.changed().await.unwrap().is_none());
+                let machine = ledger(&root, None).await;
+                let before_reserve = matches!(
+                    pause,
+                    Boundary::BeforeLock | Boundary::AfterLock | Boundary::BeforeReserve
+                );
+                if before_reserve {
+                    assert_eq!(balance(&root).await, 12);
+                    assert!(matches!(
+                        call(&root, payment()).await,
+                        Output::PayOutcome(_)
+                    ));
+                }
+                assert_eq!(balance(&root).await, if succeeds { 7 } else { 12 });
+                assert!(matches!(
+                    call(&root, payment()).await,
+                    Output::Refused(Refused::Duplicate(_))
+                ));
+                machine.stop().await;
+                translator.stop().await;
+                let journal =
+                    Journal::open(&root.join("world.memory").display().to_string()).unwrap();
+                assert_eq!(journal.entries().unwrap(), 1);
+                locks.abort();
+                cases += 1;
+            }
         }
     }
+    assert_eq!(cases, 36);
 }
 
 #[tokio::test]
@@ -398,4 +421,68 @@ async fn generated_text_clients_reach_ordinary_and_meta_sockets() {
         })
     ));
     machine.stop().await;
+}
+
+#[cfg(feature = "trace")]
+#[tokio::test]
+async fn output_leaves_before_the_generated_attempt_finishes() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    let observer = UnixListener::bind(root.join("observer.sock")).unwrap();
+    let scope = Scope::<NexusDomain>::open(
+        root.join("memory"),
+        config(root, Some(Boundary::AfterOutput)),
+        TraceHub::open(8192),
+    )
+    .await
+    .unwrap();
+    let mut traces = scope.traces.sender.subscribe();
+    let listener = UnixListener::bind(root.join("ledger.sock")).unwrap();
+    let serving = scope.clone();
+    let task = tokio::spawn(async move { serving.serve(listener, Nexus).await });
+    let mut stream = UnixStream::connect(root.join("ledger.sock")).await.unwrap();
+    assert_eq!(
+        stream.greet(SIGNAL_FINGERPRINT, LIMIT).await.unwrap(),
+        Greeting::Greeted
+    );
+    stream
+        .write_frame(&Input::Acknowledge(Acknowledge {}).encode().unwrap(), LIMIT)
+        .await
+        .unwrap();
+    assert!(matches!(
+        Output::decode(&stream.read_frame(LIMIT).await.unwrap()).unwrap(),
+        Output::Acknowledged(_)
+    ));
+    let mut barrier = boundary(&observer, Boundary::AfterOutput).await;
+    let mut events = Vec::new();
+    while let Ok(trace) = traces.try_recv() {
+        events.push(trace);
+    }
+    assert_eq!(events.len(), 3);
+    assert!(matches!(
+        &events[0].event,
+        operation_scope::Event::Entered(Object::Acknowledge(_))
+    ));
+    assert!(matches!(
+        &events[1].event,
+        operation_scope::Event::Emitted(Outcome::Acknowledged(_))
+    ));
+    assert!(matches!(
+        &events[2].event,
+        operation_scope::Event::Entered(Object::Tail(_))
+    ));
+    barrier.write_frame(&[], LIMIT).await.unwrap();
+    let tail = traces.recv().await.unwrap();
+    let end = traces.recv().await.unwrap();
+    assert!(matches!(
+        tail.event,
+        operation_scope::Event::Yielded(Outcome::TailDone(_))
+    ));
+    assert!(matches!(
+        end.event,
+        operation_scope::Event::Yielded(Outcome::Acknowledged(_))
+    ));
+    assert_eq!(tail.root, events[0].root);
+    assert_eq!(tail.path, vec![0]);
+    task.abort();
 }

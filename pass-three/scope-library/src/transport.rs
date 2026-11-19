@@ -162,16 +162,29 @@ impl<D: Domain> SocketServing<D> for Scope<D> {
                         stream.write_frame(&greeting.encode()?,limit).await?;if !matches!(greeting,Greeting::Greeted){return Ok::<_,Failure>(())}
                         loop {let limit=scope.configuration.lock().unwrap().max_frame;let input=S::Input::decode(&stream.read_frame(limit).await?)?;
                             let (emissions,mut pending)=tokio::sync::mpsc::channel(scope.configuration.lock().unwrap().command_capacity as usize);
-                            let child=Scope {output_sink:Some(std::sync::Arc::new(tokio::sync::Mutex::new(emissions))),..scope.clone()};
+                            let (exchange_end,end)=tokio::sync::watch::channel(false);
+                            let mut ended=false;
+                            let emitted=std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+                            let child=Scope {exchange_end:Some(end),output_emitted:emitted.clone(),output_sink:Some(std::sync::Arc::new(tokio::sync::Mutex::new(emissions))),..scope.clone()};
                             let dispatched=service.dispatch(input,&child);
                             tokio::pin!(dispatched);
                             let delivery=loop {tokio::select! {
                                 value=&mut dispatched=>break value?,
                                 Some(bytes)=pending.recv()=>stream.write_frame(&bytes,limit).await?,
+                                ready=stream.readable(),if !ended=>{
+                                    ready.map_err(|_|Failure::Wire)?;
+                                    let mut byte=[0u8];
+                                    match stream.try_read(&mut byte) {
+                                        Ok(0)=>{ended=true;exchange_end.send_replace(true);},
+                                        Ok(_)=>return Err(Failure::Wire),
+                                        Err(error) if error.kind()==std::io::ErrorKind::WouldBlock=>(),
+                                        Err(_)=>{ended=true;exchange_end.send_replace(true);},
+                                    }
+                                },
                             }};
                             while let Ok(bytes)=pending.try_recv() {stream.write_frame(&bytes,limit).await?;}
                             match delivery {
-                                Delivery::Reply(output)=>stream.write_frame(&output.encode()?,limit).await?,
+                                Delivery::Reply(output)=>if !emitted.load(std::sync::atomic::Ordering::SeqCst) {stream.write_frame(&output.encode()?,limit).await?},
                                 Delivery::Held{output,hold}=>{
                                     stream.write_frame(&output.encode()?,limit).await?;
                                     let mut byte=[0u8];
@@ -193,7 +206,9 @@ impl<D: Domain> SocketServing<D> for Scope<D> {
                                         stream.write_frame(&map(&bytes)?.encode()?,limit).await?;
                                     }
                                 }
-                            }}
+                            }
+                            if ended {return Ok(());}
+                        }
                     });},
                 _=tasks.join_next(),if !tasks.is_empty()=>{}
             }

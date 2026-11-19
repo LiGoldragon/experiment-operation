@@ -41,6 +41,8 @@ pub struct Scope<D: Domain> {
     pub(crate) held_owner: Option<u64>,
     pub(crate) holding_sequence: Arc<std::sync::atomic::AtomicU64>,
     pub(crate) output_sink: Option<OutputSink>,
+    pub(crate) exchange_end: Option<watch::Receiver<bool>>,
+    pub(crate) output_emitted: Arc<AtomicBool>,
 }
 pub trait ScopeOpening<D: Domain>: Sized {
     fn open(
@@ -78,6 +80,8 @@ impl<D: Domain> ScopeOpening<D> for Scope<D> {
             held_owner: None,
             holding_sequence: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             output_sink: None,
+            exchange_end: None,
+            output_emitted: Arc::new(AtomicBool::new(false)),
         };
         std::thread::spawn(move || {
             // A panic drops the liveness sender; serving treats that as fatal too.
@@ -278,6 +282,7 @@ where
     derive(datom_codec::Datomizable, datom_codec::Composing)
 )]
 pub enum Boundary {
+    AfterOutput,
     BeforeReserve,
     BeforeLock,
     AfterLock,

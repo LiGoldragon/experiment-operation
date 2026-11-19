@@ -141,8 +141,23 @@ impl<D: Domain> Emitting<D> for Scope<D> {
                 .await
                 .map_err(|_| Failure::Stopped)?;
         }
+        self.output_emitted
+            .store(true, std::sync::atomic::Ordering::SeqCst);
         if let Some(context) = &self.context {
             context.event(Event::Emitted(outcome));
+        }
+        Ok(())
+    }
+}
+
+pub trait AwaitingExchange {
+    fn await_exchange(&self) -> impl std::future::Future<Output = Result<(), Failure>> + Send;
+}
+impl<D: Domain> AwaitingExchange for Scope<D> {
+    async fn await_exchange(&self) -> Result<(), Failure> {
+        let mut end = self.exchange_end.clone().ok_or(Failure::Stopped)?;
+        if !*end.borrow() {
+            end.changed().await.map_err(|_| Failure::Stopped)?;
         }
         Ok(())
     }

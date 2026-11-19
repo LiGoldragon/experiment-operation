@@ -61,20 +61,6 @@ impl Changeable<NexusDomain> for Withdraw {
         })
     }
 }
-impl Changeable<NexusDomain> for Transfer {
-    type Yield = Transferred;
-    fn change(self, m: &mut Memory) -> Result<Transferred, Refusal> {
-        m.run(Withdraw {
-            name: Name(self.from.0),
-            amount: self.amount,
-        })?;
-        m.run(Deposit {
-            name: Name(self.to.0),
-            amount: self.amount,
-        })?;
-        Ok(Transferred {})
-    }
-}
 impl Changeable<NexusDomain> for Reserve {
     type Yield = Reserved;
     fn change(self, m: &mut Memory) -> Result<Reserved, Refusal> {
@@ -124,94 +110,101 @@ impl Changeable<NexusDomain> for Release {
         Ok(Released {})
     }
 }
-impl Operable<NexusDomain> for Pay {
-    type Outcome = Result<PayOutcome, Refusal>;
+impl Operable<NexusDomain> for AcquireLock {
+    type Outcome = Result<Held<LockAcquired>, Refusal>;
     async fn operate(self, s: &Runtime) -> Self::Outcome {
+        s.boundary(Boundary::BeforeLock).await?;
         let path = s.configuration.lock().unwrap().lock_socket.clone();
-        let result: trial_lock::Output = s
-            .ask(
+        let held = s
+            .exchange::<_, trial_lock::Output>(
                 &path,
                 trial_lock::SIGNAL_FINGERPRINT,
                 trial_lock::Input::Lock(trial_lock::Lock {
-                    lock_name: trial_lock::LockName(self.reservation.name.0.clone()),
+                    lock_name: trial_lock::LockName(self.reservation.name.0),
                 }),
             )
             .await?;
-        if !matches!(result, trial_lock::Output::Locked(_)) {
+        if !matches!(&held.value, trial_lock::Output::Locked(_)) {
             return Err(Refused::Invalid.into());
         }
-        let reservation = self.reservation;
-        let reserved = s
-            .run(Reserve {
-                reservation: reservation.clone(),
-            })
-            .await;
-        let result = match reserved {
-            Ok(_) => {
-                s.boundary(Boundary::Reserved).await?;
-                reservation.clone().finish(s, false).await
-            }
-            Err(e) => Err(e),
-        };
-        let released: Result<trial_lock::Output, Failure> = s
-            .ask(
-                &path,
-                trial_lock::SIGNAL_FINGERPRINT,
-                trial_lock::Input::Release(trial_lock::Release {
-                    lock_name: trial_lock::LockName(reservation.name.0),
-                }),
-            )
-            .await;
-        released?;
-        result
+        s.boundary(Boundary::AfterLock).await?;
+        Ok(held.map(LockAcquired {}))
     }
 }
-// The shared settlement is a trait on the durable record, used by Pay and startup.
-trait Finishing {
-    fn finish(
-        self,
-        s: &Runtime,
-        status: bool,
-    ) -> impl std::future::Future<Output = Result<PayOutcome, Refusal>> + Send;
+impl Operable<NexusDomain> for BeforeReserve {
+    type Outcome = Result<BoundaryReached, Refusal>;
+    async fn operate(self, s: &Runtime) -> Self::Outcome {
+        s.boundary(Boundary::BeforeReserve).await?;
+        Ok(BoundaryReached {})
+    }
 }
-impl Finishing for Reservation {
-    async fn finish(self, s: &Runtime, status: bool) -> Result<PayOutcome, Refusal> {
+impl Operable<NexusDomain> for ReservedBoundary {
+    type Outcome = Result<BoundaryReached, Refusal>;
+    async fn operate(self, s: &Runtime) -> Self::Outcome {
+        s.boundary(Boundary::Reserved).await?;
+        Ok(BoundaryReached {})
+    }
+}
+impl Operable<NexusDomain> for BeforeSettle {
+    type Outcome = Result<BoundaryReached, Refusal>;
+    async fn operate(self, s: &Runtime) -> Self::Outcome {
+        s.boundary(Boundary::BeforeSettle).await?;
+        Ok(BoundaryReached {})
+    }
+}
+impl Operable<NexusDomain> for AfterSettle {
+    type Outcome = Result<BoundaryReached, Refusal>;
+    async fn operate(self, s: &Runtime) -> Self::Outcome {
+        s.boundary(Boundary::AfterSettle).await?;
+        Ok(BoundaryReached {})
+    }
+}
+impl Operable<NexusDomain> for Remitting {
+    type Outcome = Result<RemitOutcome, Refusal>;
+    async fn operate(self, s: &Runtime) -> Self::Outcome {
         let path = s.configuration.lock().unwrap().translator_socket.clone();
-        let outcome = if status {
-            s.ask::<_, RemitOutcome>(
+        s.boundary(Boundary::BeforeCall).await?;
+        let outcome = s
+            .ask::<_, RemitOutcome>(
+                &path,
+                SIGNAL_FINGERPRINT,
+                WorldInput::Remit(Remit {
+                    reservation: self.reservation,
+                }),
+            )
+            .await?;
+        s.boundary(Boundary::AfterReply).await?;
+        Ok(outcome)
+    }
+}
+impl Operable<NexusDomain> for Reservation {
+    type Outcome = Result<PayOutcome, Refusal>;
+    async fn operate(self, s: &Runtime) -> Self::Outcome {
+        let path = s.configuration.lock().unwrap().translator_socket.clone();
+        let observed = s
+            .ask::<_, RemitOutcome>(
                 &path,
                 SIGNAL_FINGERPRINT,
                 WorldInput::Status(Status {
                     reservation_id: self.reservation_id.clone(),
                 }),
             )
-            .await?
-        } else {
-            RemitOutcome::Unknown
-        };
-        let outcome = match outcome {
+            .await?;
+        let outcome = match observed {
             RemitOutcome::Unknown => {
-                s.boundary(Boundary::BeforeCall).await?;
-                s.ask::<_, RemitOutcome>(
-                    &path,
-                    SIGNAL_FINGERPRINT,
-                    WorldInput::Remit(Remit {
-                        reservation: self.clone(),
-                    }),
-                )
+                s.run(Remitting {
+                    reservation: self.clone(),
+                })
                 .await?
             }
-            outcome => outcome,
+            known => known,
         };
-        s.boundary(Boundary::AfterReply).await?;
         match outcome {
             RemitOutcome::Remitted => {
-                s.boundary(Boundary::BeforeSettle).await?;
                 s.run(Settle {
                     reservation_id: self.reservation_id,
                 })
                 .await?;
-                s.boundary(Boundary::AfterSettle).await?;
                 Ok(PayOutcome::Paid)
             }
             RemitOutcome::Unremitted(code) => {
@@ -225,26 +218,6 @@ impl Finishing for Reservation {
         }
     }
 }
-impl Operable<NexusDomain> for Reservation {
-    type Outcome = Result<PayOutcome, Refusal>;
-    async fn operate(self, s: &Runtime) -> Self::Outcome {
-        let path = s.configuration.lock().unwrap().lock_socket.clone();
-        let name = self.name.0.clone();
-        let result = self.finish(s, true).await;
-        if result.is_ok() {
-            let _: trial_lock::Output = s
-                .ask(
-                    &path,
-                    trial_lock::SIGNAL_FINGERPRINT,
-                    trial_lock::Input::Release(trial_lock::Release {
-                        lock_name: trial_lock::LockName(name),
-                    }),
-                )
-                .await?;
-        }
-        result
-    }
-}
 impl Operable<NexusDomain> for Subscribe {
     type Outcome = Result<Subscription<Account>, Refusal>;
     async fn operate(self, s: &Runtime) -> Self::Outcome {
@@ -252,27 +225,10 @@ impl Operable<NexusDomain> for Subscribe {
     }
 }
 
-impl Operable<NexusDomain> for Payment {
-    type Outcome = Result<PayOutcome, Refusal>;
+impl Operable<NexusDomain> for Tail {
+    type Outcome = Result<TailDone, Refusal>;
     async fn operate(self, s: &Runtime) -> Self::Outcome {
-        let path = s.configuration.lock().unwrap().lock_socket.clone();
-        let output: trial_lock::Output = s
-            .ask(
-                &path,
-                trial_lock::SIGNAL_FINGERPRINT,
-                trial_lock::Input::Release(trial_lock::Release {
-                    lock_name: trial_lock::LockName(self.name.0),
-                }),
-            )
-            .await?;
-        match output {
-            trial_lock::Output::Released(_)
-            | trial_lock::Output::Refused(trial_lock::Refused::Unknown) => Ok(if self.boolean {
-                PayOutcome::Paid
-            } else {
-                PayOutcome::Unpaid(1)
-            }),
-            _ => Err(Refused::Invalid.into()),
-        }
+        s.boundary(Boundary::AfterOutput).await?;
+        Ok(TailDone {})
     }
 }
