@@ -15,8 +15,9 @@ fn main() {
         translation: read("translation"),
     }
     .generate_nexus_with(&GenerationPolicy {
-        resumables: vec!["Reservation".into(), "Payment".into()],
-        fallible_attempts: vec!["Pay".into(), "Subscribe".into()],
+        resumables: vec!["Reservation".into()],
+        fallible_attempts: vec!["Pay".into(), "Subscribe".into(), "Acknowledge".into()],
+        held_attempts: vec!["AcquireLock".into()],
         subscriptions: vec![SubscriptionBinding {
             input: "Subscribe".into(),
             record: "Account".into(),

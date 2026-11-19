@@ -1,5 +1,6 @@
 Operation
 []
-[]
-[]
-[]
+[ Lock.{ TakeLock Locked AwaitExchange } ]
+[ AwaitExchange ]
+[ Locked ]
+[ Lock.{ LockName } ]

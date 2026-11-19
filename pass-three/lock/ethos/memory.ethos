@@ -1,9 +1,7 @@
 Memory
 []
 [ HeldLock.{ LockName Integer } ]
-[ Lock.LockName
-  Release.LockName ]
+[ TakeLock.LockName ]
 [ Locked
-  Released
   Refused.[ Held Unknown ] ]
 [ LockName.String ]

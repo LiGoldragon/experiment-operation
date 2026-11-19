@@ -6,7 +6,9 @@ Memory
 [ Create.Account
   Deposit.{ Name Amount }
   Withdraw.{ Name Amount }
-  Transfer.{ From To Amount }
+  Transfer.{ Withdraw.{ Name.From Amount }
+             Deposit.{ Name.To Amount }
+             Transferred }
   Reserve.Reservation
   Settle.ReservationId
   Release.ReservationId
@@ -19,8 +21,9 @@ Memory
   Settled
   Released
   Account
-  Refused.[ Missing.Name Insufficient.Balance Invalid Duplicate.ReservationId ] ]
-[ Name.String
+  Refused.[ Missing.Name Insufficient.Balance Invalid Duplicate.ReservationId Unknown ] ]
+[ Transfer.{ From To Amount }
+  Name.String
   Balance.Integer
   Amount.Integer
   ReservationId.String

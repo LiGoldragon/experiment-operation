@@ -5,12 +5,14 @@ Signal
   Transfer
   Inspect
   Pay
-  Subscribe ]
+  Subscribe
+  Acknowledge ]
 [ Created
   Deposited
   Transferred
   Account
   PayOutcome
   Subscribed
+  Acknowledged
   Refused ]
 []

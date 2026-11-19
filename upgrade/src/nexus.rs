@@ -38,6 +38,8 @@ impl GeneratedSource for GeneratedNexus {
 pub struct GenerationPolicy {
     pub resumables: Vec<String>,
     pub fallible_attempts: Vec<String>,
+    pub held_changes: Vec<String>,
+    pub held_attempts: Vec<String>,
     pub subscriptions: Vec<SubscriptionBinding>,
     pub memory_history: Option<crate::memory_history::MemoryHistory>,
 }
@@ -133,9 +135,11 @@ impl NamedEntry for str {
 }
 impl GeneratingNexus for NexusSchema {
     fn generate_nexus_with(&self, policy: &GenerationPolicy) -> Result<GeneratedNexus> {
+        use crate::whole::{WholeGenerating, WholeReading};
+        let whole = self.whole_forms()?;
         let signal = self.signal.sections("Signal", 4)?;
-        let memory = self.memory.sections("Memory", 5)?;
-        let operation = self.operation.sections("Operation", 4)?;
+        let memory = whole.memory.sections("Memory", 5)?;
+        let operation = whole.operation.sections("Operation", 4)?;
         let translation = self.translation.sections("Translation", 4)?;
         // Imports cannot be silently discarded: external namespaces need an
         // Ethos repository resolver, absent from this bounded experiment.
@@ -176,10 +180,16 @@ impl GeneratingNexus for NexusSchema {
                     Entry::Vacant(slot) => {
                         slot.insert(entry.object_declaration()?);
                     }
-                    Entry::Occupied(slot) if entry != &name => ensure!(
-                        slot.get() == &entry.object_declaration()? || slot.get() == entry,
-                        "conflicting declaration {name}"
-                    ),
+                    Entry::Occupied(mut slot) if entry != &name => {
+                        if slot.get() == &format!("{name}.{{}}") {
+                            slot.insert(entry.object_declaration()?);
+                        } else {
+                            ensure!(
+                                slot.get() == &entry.object_declaration()? || slot.get() == entry,
+                                "conflicting declaration {name}"
+                            );
+                        }
+                    }
                     Entry::Occupied(_) => {}
                 }
             }
@@ -207,23 +217,53 @@ impl GeneratingNexus for NexusSchema {
                 "{reserved} is a generated infrastructure name"
             );
         }
-        let mut all = declarations.values().cloned().collect::<Vec<_>>();
-        all.push(format!("Input.[ {} ]", signal.entries[1].join(" ")));
-        all.push(format!("Output.[ {} ]", signal.entries[2].join(" ")));
-        if !translation.entries[1].is_empty() {
-            all.push(format!(
-                "WorldInput.[ {} ]",
-                translation.entries[1]
-                    .iter()
-                    .map(|e| e.entry_name())
-                    .collect::<Result<Vec<_>>>()?
-                    .join(" ")
-            ));
-        }
-        let library = format!("Library [] [ {} ] [] []", all.join("\n"));
-        let parsed = Potential::<File>::from(library)
+        let all = declarations.values().cloned().collect::<Vec<_>>();
+        let combined = format!(
+            "Signal [] {} {} [ {} ]",
+            signal.sections[1],
+            signal.sections[2],
+            all.join("\n")
+        );
+        let checked = Potential::<File>::from(combined)
             .actualize()
             .map_err(|e| anyhow::anyhow!("combined Nexus declarations: {e:?}"))?;
+        let File::Signal(checked) = checked else {
+            unreachable!()
+        };
+        let mut declarations_checked = checked.types;
+        for (name, variants) in [("Input", checked.queries), ("Output", checked.responses)] {
+            declarations_checked.push(TypeDeclaration::Enum(
+                ethos_zero::Identity {
+                    name: ethos_zero::Name::try_from(name).map_err(anyhow::Error::msg)?,
+                    constraints: Vec::new(),
+                },
+                variants,
+            ));
+        }
+        if !translation.entries[1].is_empty() {
+            let variants = translation.entries[1]
+                .iter()
+                .map(|entry| {
+                    Ok(ethos_zero::Variant::Bare(
+                        ethos_zero::Name::try_from(entry.entry_name()?.as_str())
+                            .map_err(anyhow::Error::msg)?,
+                    ))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            declarations_checked.push(TypeDeclaration::Enum(
+                ethos_zero::Identity {
+                    name: ethos_zero::Name::try_from("WorldInput").map_err(anyhow::Error::msg)?,
+                    constraints: Vec::new(),
+                },
+                variants,
+            ));
+        }
+        let parsed = File::Library(ethos_zero::Library {
+            imports: Vec::new(),
+            types: declarations_checked,
+            traits: Vec::new(),
+            associations: Vec::new(),
+        });
         let mut types = parsed
             .generate()
             .map_err(|e| anyhow::anyhow!("Nexus Rust: {e:?}"))?;
@@ -323,7 +363,14 @@ impl GeneratingNexus for NexusSchema {
             declarations.contains_key("Refused"),
             "declare domain Refused among Memory outcomes"
         );
-        let mut bindings = String::new();
+        let mut bindings = whole.generate(
+            &declarations,
+            &signal,
+            &memory,
+            &operation,
+            &translation,
+            policy,
+        )?;
         let File::Library(library) = &parsed else {
             unreachable!()
         };
@@ -473,8 +520,17 @@ impl GeneratingNexus for NexusSchema {
         for name in &policy.resumables {
             writeln!(
                 bindings,
-                "impl operation_scope::Resumable<NexusDomain> for {name} {{}}\nimpl operation_scope::ScopeObject<NexusDomain> for {name} {{type Outcome=<Self as operation_scope::Operable<NexusDomain>>::Outcome;async fn execute(self,scope:&operation_scope::Scope<NexusDomain>)->Self::Outcome {{operation_scope::AttemptExecuting::attempt(scope,self).await}}}}"
+                "impl operation_scope::Resumable<NexusDomain> for {name} {{}}"
             )?;
+            if !operation.entries[1]
+                .iter()
+                .any(|entry| entry.entry_name().is_ok_and(|entry| entry == *name))
+            {
+                writeln!(
+                    bindings,
+                    "impl operation_scope::ScopeObject<NexusDomain> for {name} {{type Outcome=<Self as operation_scope::Operable<NexusDomain>>::Outcome;async fn execute(self,scope:&operation_scope::Scope<NexusDomain>)->Self::Outcome {{operation_scope::AttemptExecuting::attempt(scope,self).await}}}}"
+                )?;
+            }
         }
         objects.push("Upgrade".into());
         outcomes.push("UpgradeYield".into());

@@ -17,6 +17,8 @@ fn main() {
         translation: read("translation"),
     }
     .generate_nexus_with(&GenerationPolicy {
+        fallible_attempts: vec!["Lock".into()],
+        held_changes: vec!["TakeLock".into()],
         memory_history: Some(MemoryHistory {
             manifest: fs::read_to_string("ethos/manifest.datom")
                 .unwrap()

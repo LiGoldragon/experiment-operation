@@ -15,3 +15,5 @@ pub use nexus::*;
 mod nexus_text;
 
 pub mod memory_history;
+
+mod whole;

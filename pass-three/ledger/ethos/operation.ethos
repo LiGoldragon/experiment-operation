@@ -1,7 +1,35 @@
 Operation
 []
-[ Pay.Reservation
-  Subscribe.Name ]
+[ Pay.{ AcquireLock
+        BeforeReserve
+        Reserve
+        ReservedBoundary
+        Remitting.[ Remitted.{ BeforeSettle Settle AfterSettle PayOutcome.Paid }
+                    Unremitted.{ Release PayOutcome.Unpaid } ] }
+  Acknowledge.{ Acknowledged Tail }
+  Reservation.{ Observing.[ Remitted.{ Settle PayOutcome.Paid }
+                            Unremitted.{ Release PayOutcome.Unpaid }
+                            Unknown.{ Remitting.[ Remitted.{ Settle PayOutcome.Paid }
+                                                  Unremitted.{ Release PayOutcome.Unpaid } ] } ] } ]
+[ Subscribe.Name
+  AcquireLock.Reservation
+  BeforeReserve
+  ReservedBoundary
+  BeforeSettle
+  AfterSettle
+  Observing.Reservation
+  Remitting.Reservation
+  Tail ]
+[ Subscribed.Account
+  LockAcquired
+  BoundaryReached
+  BoundaryReached
+  BoundaryReached
+  BoundaryReached
+  RemitOutcome
+  RemitOutcome
+  TailDone ]
 [ PayOutcome.[ Paid Unpaid.Integer ]
-  Subscribed.Account ]
-[]
+  Pay.{ Reservation }
+  Acknowledge.{}
+  Acknowledged.{} ]
