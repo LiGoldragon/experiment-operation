@@ -65,7 +65,7 @@ impl RustGenerating for Manifest {
                 writeln!(output, "}}")?;
                 writeln!(
                     output,
-                    "impl experiment_upgrade::ArchiveRecord for {} {{\nconst TABLE: &'static str = {:?};\nfn identity(&self) -> &str {{ &self.{} }}\nfn encode(&self) -> anyhow::Result<Vec<u8>> {{ Ok(rkyv::to_bytes::<rkyv::rancor::Error>(self)?.to_vec()) }}\nfn decode(bytes: &[u8]) -> anyhow::Result<Self> {{ Ok(rkyv::from_bytes::<Self, rkyv::rancor::Error>(bytes)?) }}\n}}",
+                    "impl experiment_upgrade::ArchiveRecord for {} {{\nconst TABLE: &'static str = {:?};\nconst VERSION: u32 = {version};\nfn identity(&self) -> &str {{ &self.{} }}\nfn encode(&self) -> anyhow::Result<Vec<u8>> {{ Ok(rkyv::to_bytes::<rkyv::rancor::Error>(self)?.to_vec()) }}\nfn decode(bytes: &[u8]) -> anyhow::Result<Self> {{ Ok(rkyv::from_bytes::<Self, rkyv::rancor::Error>(bytes)?) }}\n}}",
                     record.name,
                     record.name,
                     record.fields[0].name.rust_field()

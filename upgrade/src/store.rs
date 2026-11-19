@@ -10,6 +10,7 @@ const METADATA: TableDefinition<&str, u32> = TableDefinition::new("__memory_vers
 /// A concrete archived historical type, checked on read with rkyv bytecheck.
 pub trait ArchiveRecord: Sized {
     const TABLE: &'static str;
+    const VERSION: u32;
     fn identity(&self) -> &str;
     fn encode(&self) -> Result<Vec<u8>>;
     fn decode(bytes: &[u8]) -> Result<Self>;
@@ -46,8 +47,8 @@ pub trait StoreOpening: Sized {
 pub trait StoreAccess {
     fn initialize(&self) -> Result<()>;
     fn version(&self) -> Result<u32>;
-    fn insert<R: ArchiveRecord>(&self, version: u32, record: &R) -> Result<()>;
-    fn records<R: ArchiveRecord>(&self, version: u32) -> Result<Vec<R>>;
+    fn insert<R: ArchiveRecord>(&self, record: &R) -> Result<()>;
+    fn records<R: ArchiveRecord>(&self) -> Result<Vec<R>>;
     fn upgrade(&self, plan: &dyn Migrating, observer: &mut dyn MigrationObserver) -> Result<()>;
 }
 /// Faults are injected after a write has happened inside the uncommitted transaction.
@@ -143,13 +144,13 @@ impl StoreAccess for Store {
             .value();
         Ok(version)
     }
-    fn insert<R: ArchiveRecord>(&self, version: u32, record: &R) -> Result<()> {
+    fn insert<R: ArchiveRecord>(&self, record: &R) -> Result<()> {
         let transaction = self.database.begin_write()?;
         ensure!(
             transaction
                 .open_table(METADATA)?
                 .get("version")?
-                .is_some_and(|v| v.value() == version),
+                .is_some_and(|v| v.value() == R::VERSION),
             "wrong schema version"
         );
         {
@@ -161,13 +162,13 @@ impl StoreAccess for Store {
         transaction.commit()?;
         Ok(())
     }
-    fn records<R: ArchiveRecord>(&self, version: u32) -> Result<Vec<R>> {
+    fn records<R: ArchiveRecord>(&self) -> Result<Vec<R>> {
         let transaction = self.database.begin_read()?;
         ensure!(
             transaction
                 .open_table(METADATA)?
                 .get("version")?
-                .is_some_and(|v| v.value() == version),
+                .is_some_and(|v| v.value() == R::VERSION),
             "wrong schema version"
         );
         let table = transaction.open_table(TableDefinition::<&str, &[u8]>::new(R::TABLE))?;
