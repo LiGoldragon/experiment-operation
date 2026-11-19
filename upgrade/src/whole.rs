@@ -48,6 +48,7 @@ pub(crate) trait WholeGenerating {
 trait CompositionWriting {
     fn expose(&mut self, name: &str, expression: String, ancestors: &mut Vec<String>)
     -> Result<()>;
+    fn retained(&self, name: &str, expression: &str) -> Result<String>;
     fn value(&self, name: &str) -> Result<String>;
     fn compose(&self, expression: &Protos) -> Result<String>;
     fn positions(&mut self, positions: &[Protos], code: &mut String) -> Result<String>;
@@ -338,7 +339,7 @@ impl WholeGenerating for WholeForms {
                     emitted.name,
                     whole.outcome
                 );
-                format!("{}.clone()", emitted.expression)
+                composition.retained(&emitted.name, &emitted.expression)?
             } else {
                 last
             };
@@ -396,6 +397,25 @@ impl CompositionWriting for Composition<'_> {
         }
         Ok(())
     }
+    fn retained(&self, name: &str, expression: &str) -> Result<String> {
+        // Ethos Zero derives Copy for fixed-size scalars and their newtype
+        // chains; structs, enums and unresolved references retain Clone.
+        let mut underlying = name.to_owned();
+        for _ in 0..=self.definitions.len() {
+            if matches!(underlying.as_str(), "Integer" | "Boolean" | "Decimal") {
+                return Ok(expression.to_owned());
+            }
+            let Some(declaration) = self.definitions.get(&underlying) else {
+                break;
+            };
+            let tree = declaration.as_str().tree()?;
+            let Some(Protos::Bare { text, .. }) = tree.body() else {
+                break;
+            };
+            underlying = text.clone();
+        }
+        Ok(format!("{expression}.clone()"))
+    }
     fn value(&self, name: &str) -> Result<String> {
         let values = self
             .available
@@ -408,7 +428,7 @@ impl CompositionWriting for Composition<'_> {
             self.attempt,
             values.len()
         );
-        Ok(format!("{}.clone()", values[0].expression))
+        self.retained(name, &values[0].expression)
     }
     fn compose(&self, expression: &Protos) -> Result<String> {
         let name = expression.named()?;
@@ -625,8 +645,9 @@ impl CompositionWriting for Composition<'_> {
                                     self.attempt
                                 );
                             }
+                            let value = self.retained(&emitted.name, &emitted.expression)?;
                             branch_output = Some(emitted.name);
-                            format!("{}.clone()", emitted.expression)
+                            value
                         } else {
                             value
                         };
@@ -699,9 +720,10 @@ impl CompositionWriting for Composition<'_> {
                     name: name.to_owned(),
                     expression: local.clone(),
                 });
+                let retained = self.retained(name, &local)?;
                 writeln!(
                     code,
-                    "operation_scope::Emitting::emit(scope,operation_scope::TraceOutcome::outcome(&{local}),operation_scope::Wire::encode(&Output::{name}({local}.clone()))?).await?;"
+                    "operation_scope::Emitting::emit(scope,operation_scope::TraceOutcome::outcome(&{local}),operation_scope::Wire::encode(&Output::{name}({retained}))?).await?;"
                 )?;
             }
             Ok(local)
