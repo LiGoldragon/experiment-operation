@@ -78,6 +78,7 @@ pub enum Change {
 pub enum Reply {
     Recalled(Option<Vec<u8>>),
     Changed,
+    Rejected,
 }
 struct Envelope {
     command: Command,
@@ -210,10 +211,10 @@ impl Dispatchable for Scope {
                     .map_err(|_| Failure::Stopped)?;
                 receiver.await.map_err(|_| Failure::Stopped)?
             }
-            Backend::Actors(actor) => actor
-                .ask(command)
-                .await
-                .map_err(|e| Failure::Storage(e.to_string())),
+            Backend::Actors(actor) => actor.ask(command).await.map_err(|e| match e {
+                kameo::error::SendError::HandlerError(error) => error,
+                _ => Failure::Stopped,
+            }),
         }
     }
     async fn shutdown(&self) {
@@ -265,7 +266,7 @@ impl Executable for Store {
                                     .open_table(TableDefinition::<&str, &[u8]>::new(table))?
                                     .remove(key.as_str())?;
                             }
-                            Change::Reject => return Ok(Reply::Recalled(None)),
+                            Change::Reject => return Ok(Reply::Rejected),
                         }
                     }
                     transaction.commit()?;
@@ -413,3 +414,10 @@ impl Textualizable for Change {
 
 #[cfg(test)]
 mod tests;
+
+impl std::fmt::Display for Failure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{self:?}")
+    }
+}
+impl std::error::Error for Failure {}

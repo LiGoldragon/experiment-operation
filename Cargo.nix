@@ -232,6 +232,69 @@ rec {
           "rustc-dep-of-std" = [ "core" ];
         };
       };
+      "datom-codec" = rec {
+        crateName = "datom-codec";
+        version = "0.33.1";
+        edition = "2024";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/LiGoldragon/datom-codec";
+          rev = "09a0526949b043f921b6d3ce115b7f455291f2e2";
+          sha256 = "18cplyk9f5nrqs35fgqpimfi507l38qvkmkx3z2qm2vwi1rlii2d";
+        };
+        libName = "datom_codec";
+        dependencies = [
+          {
+            name = "datom-codec-derive";
+            packageId = "datom-codec-derive";
+            rename = "derive";
+          }
+          {
+            name = "protos";
+            packageId = "protos";
+          }
+          {
+            name = "rkyv";
+            packageId = "rkyv";
+            optional = true;
+            usesDefaultFeatures = false;
+            features = [ "std" "bytecheck" "little_endian" "pointer_width_32" "unaligned" ];
+          }
+        ];
+        features = {
+          "rkyv" = [ "dep:rkyv" "protos/rkyv" ];
+        };
+        resolvedDefaultFeatures = [ "rkyv" ];
+      };
+      "datom-codec-derive" = rec {
+        crateName = "datom-codec-derive";
+        version = "0.32.3";
+        edition = "2024";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/LiGoldragon/datom-codec";
+          rev = "09a0526949b043f921b6d3ce115b7f455291f2e2";
+          sha256 = "18cplyk9f5nrqs35fgqpimfi507l38qvkmkx3z2qm2vwi1rlii2d";
+        };
+        procMacro = true;
+        libName = "datom_codec_derive";
+        dependencies = [
+          {
+            name = "proc-macro2";
+            packageId = "proc-macro2";
+          }
+          {
+            name = "quote";
+            packageId = "quote";
+          }
+          {
+            name = "syn";
+            packageId = "syn 2.0.119";
+            features = [ "full" ];
+          }
+        ];
+
+      };
       "downcast-rs" = rec {
         crateName = "downcast-rs";
         version = "2.0.2";
@@ -317,12 +380,7 @@ rec {
         dependencies = [
           {
             name = "datom-codec";
-            packageId = "git+https://github.com/LiGoldragon/datom-codec?rev=09a0526#0.33.1";
-            features = [ "rkyv" ];
-          }
-          {
-            name = "protos";
-            packageId = "git+https://github.com/LiGoldragon/protos?rev=c93b598#0.33.0";
+            packageId = "datom-codec";
             features = [ "rkyv" ];
           }
           {
@@ -332,6 +390,11 @@ rec {
           {
             name = "proc-macro2";
             packageId = "proc-macro2";
+          }
+          {
+            name = "protos";
+            packageId = "protos";
+            features = [ "rkyv" ];
           }
           {
             name = "quote";
@@ -358,6 +421,13 @@ rec {
         crateName = "experiment-upgrade";
         version = "0.1.0";
         edition = "2024";
+        crateBin = [
+          {
+            name = "experiment-upgrade";
+            path = "src/main.rs";
+            requiredFeatures = [ ];
+          }
+        ];
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./upgrade; };
         libName = "experiment_upgrade";
         dependencies = [
@@ -366,17 +436,17 @@ rec {
             packageId = "anyhow";
           }
           {
+            name = "datom-codec";
+            packageId = "datom-codec";
+            features = [ "rkyv" ];
+          }
+          {
             name = "ethos-zero";
             packageId = "ethos-zero";
           }
           {
-            name = "datom-codec";
-            packageId = "git+https://github.com/LiGoldragon/datom-codec?rev=09a0526949b043f921b6d3ce115b7f455291f2e2#0.33.1";
-            features = [ "rkyv" ];
-          }
-          {
             name = "protos";
-            packageId = "git+https://github.com/LiGoldragon/protos?rev=c93b598025984f8a73e70aa18b8e8a6fdfdfdfd8#0.33.0";
+            packageId = "protos";
             features = [ "rkyv" ];
           }
           {
@@ -765,180 +835,6 @@ rec {
           "wasm_js" = [ "dep:wasm-bindgen" "dep:js-sys" ];
         };
       };
-      "git+https://github.com/LiGoldragon/datom-codec?rev=09a0526#0.33.1" = rec {
-        crateName = "datom-codec";
-        version = "0.33.1";
-        edition = "2024";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/LiGoldragon/datom-codec";
-          rev = "09a0526949b043f921b6d3ce115b7f455291f2e2";
-          sha256 = "18cplyk9f5nrqs35fgqpimfi507l38qvkmkx3z2qm2vwi1rlii2d";
-        };
-        libName = "datom_codec";
-        dependencies = [
-          {
-            name = "datom-codec-derive";
-            packageId = "git+https://github.com/LiGoldragon/datom-codec?rev=09a0526#datom-codec-derive@0.32.3";
-            rename = "derive";
-          }
-          {
-            name = "protos";
-            packageId = "git+https://github.com/LiGoldragon/protos?rev=c93b598#0.33.0";
-          }
-          {
-            name = "rkyv";
-            packageId = "rkyv";
-            optional = true;
-            usesDefaultFeatures = false;
-            features = [ "std" "bytecheck" "little_endian" "pointer_width_32" "unaligned" ];
-          }
-        ];
-        features = {
-          "rkyv" = [ "dep:rkyv" "protos/rkyv" ];
-        };
-        resolvedDefaultFeatures = [ "rkyv" ];
-      };
-      "git+https://github.com/LiGoldragon/datom-codec?rev=09a0526#datom-codec-derive@0.32.3" = rec {
-        crateName = "datom-codec-derive";
-        version = "0.32.3";
-        edition = "2024";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/LiGoldragon/datom-codec";
-          rev = "09a0526949b043f921b6d3ce115b7f455291f2e2";
-          sha256 = "18cplyk9f5nrqs35fgqpimfi507l38qvkmkx3z2qm2vwi1rlii2d";
-        };
-        procMacro = true;
-        libName = "datom_codec_derive";
-        dependencies = [
-          {
-            name = "proc-macro2";
-            packageId = "proc-macro2";
-          }
-          {
-            name = "quote";
-            packageId = "quote";
-          }
-          {
-            name = "syn";
-            packageId = "syn 2.0.119";
-            features = [ "full" ];
-          }
-        ];
-
-      };
-      "git+https://github.com/LiGoldragon/datom-codec?rev=09a0526949b043f921b6d3ce115b7f455291f2e2#0.33.1" = rec {
-        crateName = "datom-codec";
-        version = "0.33.1";
-        edition = "2024";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/LiGoldragon/datom-codec";
-          rev = "09a0526949b043f921b6d3ce115b7f455291f2e2";
-          sha256 = "18cplyk9f5nrqs35fgqpimfi507l38qvkmkx3z2qm2vwi1rlii2d";
-        };
-        libName = "datom_codec";
-        dependencies = [
-          {
-            name = "datom-codec-derive";
-            packageId = "git+https://github.com/LiGoldragon/datom-codec?rev=09a0526949b043f921b6d3ce115b7f455291f2e2#datom-codec-derive@0.32.3";
-            rename = "derive";
-          }
-          {
-            name = "protos";
-            packageId = "git+https://github.com/LiGoldragon/protos?rev=c93b598#0.33.0";
-          }
-          {
-            name = "rkyv";
-            packageId = "rkyv";
-            optional = true;
-            usesDefaultFeatures = false;
-            features = [ "std" "bytecheck" "little_endian" "pointer_width_32" "unaligned" ];
-          }
-        ];
-        features = {
-          "rkyv" = [ "dep:rkyv" "protos/rkyv" ];
-        };
-        resolvedDefaultFeatures = [ "rkyv" ];
-      };
-      "git+https://github.com/LiGoldragon/datom-codec?rev=09a0526949b043f921b6d3ce115b7f455291f2e2#datom-codec-derive@0.32.3" = rec {
-        crateName = "datom-codec-derive";
-        version = "0.32.3";
-        edition = "2024";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/LiGoldragon/datom-codec";
-          rev = "09a0526949b043f921b6d3ce115b7f455291f2e2";
-          sha256 = "18cplyk9f5nrqs35fgqpimfi507l38qvkmkx3z2qm2vwi1rlii2d";
-        };
-        procMacro = true;
-        libName = "datom_codec_derive";
-        dependencies = [
-          {
-            name = "proc-macro2";
-            packageId = "proc-macro2";
-          }
-          {
-            name = "quote";
-            packageId = "quote";
-          }
-          {
-            name = "syn";
-            packageId = "syn 2.0.119";
-            features = [ "full" ];
-          }
-        ];
-
-      };
-      "git+https://github.com/LiGoldragon/protos?rev=c93b598#0.33.0" = rec {
-        crateName = "protos";
-        version = "0.33.0";
-        edition = "2024";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/LiGoldragon/protos";
-          rev = "c93b598025984f8a73e70aa18b8e8a6fdfdfdfd8";
-          sha256 = "00rwpzkxqmwhmxr2dkv9ay9wfvjxbprvvv23lfxmqamm2264r2gb";
-        };
-        dependencies = [
-          {
-            name = "rkyv";
-            packageId = "rkyv";
-            optional = true;
-            usesDefaultFeatures = false;
-            features = [ "std" "bytecheck" "little_endian" "pointer_width_32" "unaligned" ];
-          }
-        ];
-        features = {
-          "rkyv" = [ "dep:rkyv" ];
-        };
-        resolvedDefaultFeatures = [ "rkyv" ];
-      };
-      "git+https://github.com/LiGoldragon/protos?rev=c93b598025984f8a73e70aa18b8e8a6fdfdfdfd8#0.33.0" = rec {
-        crateName = "protos";
-        version = "0.33.0";
-        edition = "2024";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/LiGoldragon/protos";
-          rev = "c93b598025984f8a73e70aa18b8e8a6fdfdfdfd8";
-          sha256 = "00rwpzkxqmwhmxr2dkv9ay9wfvjxbprvvv23lfxmqamm2264r2gb";
-        };
-        dependencies = [
-          {
-            name = "rkyv";
-            packageId = "rkyv";
-            optional = true;
-            usesDefaultFeatures = false;
-            features = [ "std" "bytecheck" "little_endian" "pointer_width_32" "unaligned" ];
-          }
-        ];
-        features = {
-          "rkyv" = [ "dep:rkyv" ];
-        };
-        resolvedDefaultFeatures = [ "rkyv" ];
-      };
       "hashbrown" = rec {
         crateName = "hashbrown";
         version = "0.17.1";
@@ -1291,6 +1187,30 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "proc-macro" ];
       };
+      "protos" = rec {
+        crateName = "protos";
+        version = "0.33.0";
+        edition = "2024";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/LiGoldragon/protos";
+          rev = "c93b598025984f8a73e70aa18b8e8a6fdfdfdfd8";
+          sha256 = "00rwpzkxqmwhmxr2dkv9ay9wfvjxbprvvv23lfxmqamm2264r2gb";
+        };
+        dependencies = [
+          {
+            name = "rkyv";
+            packageId = "rkyv";
+            optional = true;
+            usesDefaultFeatures = false;
+            features = [ "std" "bytecheck" "little_endian" "pointer_width_32" "unaligned" ];
+          }
+        ];
+        features = {
+          "rkyv" = [ "dep:rkyv" ];
+        };
+        resolvedDefaultFeatures = [ "rkyv" ];
+      };
       "ptr_meta" = rec {
         crateName = "ptr_meta";
         version = "0.3.2";
@@ -1547,7 +1467,7 @@ rec {
           "triomphe-0_1" = [ "dep:triomphe-0_1" "alloc" ];
           "uuid-1" = [ "dep:uuid-1" "bytecheck?/uuid-1" ];
         };
-        resolvedDefaultFeatures = [ "alloc" "bytecheck" "default" "little_endian" "pointer_width_32" "std" "unaligned" ];
+        resolvedDefaultFeatures = [ "alloc" "bytecheck" "little_endian" "pointer_width_32" "std" "unaligned" ];
       };
       "rkyv_derive" = rec {
         crateName = "rkyv_derive";
@@ -1726,7 +1646,8 @@ rec {
           {
             name = "rkyv";
             packageId = "rkyv";
-            features = [ "bytecheck" "little_endian" ];
+            usesDefaultFeatures = false;
+            features = [ "std" "bytecheck" "little_endian" "pointer_width_32" "unaligned" ];
           }
           {
             name = "tokio";
