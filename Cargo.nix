@@ -1035,6 +1035,30 @@ rec {
         };
         resolvedDefaultFeatures = [ "auxvec" "elf" "errno" "general" "ioctl" "no_std" ];
       };
+      "log" = rec {
+        crateName = "log";
+        version = "0.4.35";
+        edition = "2021";
+        sha256 = "0p002750b2hab9bnlxxrvk5g9dvyaf23kiy39s6wsi6s29nzh5ax";
+        authors = [
+          "The Rust Project Developers"
+        ];
+        features = {
+          "kv_serde" = [ "kv_std" "value-bag/serde" "serde" ];
+          "kv_std" = [ "std" "kv" "value-bag/error" ];
+          "kv_sval" = [ "kv" "value-bag/sval" "sval" "sval_ref" ];
+          "kv_unstable" = [ "kv" "value-bag" ];
+          "kv_unstable_serde" = [ "kv_serde" "kv_unstable_std" ];
+          "kv_unstable_std" = [ "kv_std" "kv_unstable" ];
+          "kv_unstable_sval" = [ "kv_sval" "kv_unstable" ];
+          "serde" = [ "serde_core" ];
+          "serde_core" = [ "dep:serde_core" ];
+          "std" = [ "alloc" ];
+          "sval" = [ "dep:sval" ];
+          "sval_ref" = [ "dep:sval_ref" ];
+          "value-bag" = [ "dep:value-bag" ];
+        };
+      };
       "memchr" = rec {
         crateName = "memchr";
         version = "2.8.3";
@@ -1071,6 +1095,11 @@ rec {
             target = { target, features }: ((target."unix" or false) || ("hermit" == target."os" or null) || ("wasi" == target."os" or null));
           }
           {
+            name = "log";
+            packageId = "log";
+            optional = true;
+          }
+          {
             name = "wasi";
             packageId = "wasi";
             target = { target, features }: ("wasi" == target."os" or null);
@@ -1087,7 +1116,7 @@ rec {
           "log" = [ "dep:log" ];
           "os-ext" = [ "os-poll" "windows-sys/Win32_System_Pipes" "windows-sys/Win32_Security" ];
         };
-        resolvedDefaultFeatures = [ "net" "os-ext" "os-poll" ];
+        resolvedDefaultFeatures = [ "default" "log" "net" "os-ext" "os-poll" ];
       };
       "munge" = rec {
         crateName = "munge";
@@ -1673,6 +1702,11 @@ rec {
           {
             name = "kameo";
             packageId = "kameo";
+          }
+          {
+            name = "mio";
+            packageId = "mio";
+            features = [ "log" ];
           }
           {
             name = "redb";
