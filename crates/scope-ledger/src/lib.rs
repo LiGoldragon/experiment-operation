@@ -3,23 +3,32 @@ use kameo::{
     actor::{ActorRef, Spawn},
     message::{Context, Message},
 };
-use redb::{Database, ReadableTable, TableDefinition};
+use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 #[cfg(feature = "trace")]
 use std::sync::Arc;
 use std::{future::Future, marker::PhantomData, path::Path};
 use tokio::sync::{mpsc, oneshot};
 
+#[cfg(feature = "trace")]
 pub trait Textualizable {
     fn datom(&self) -> String;
 }
-pub trait Operable: Textualizable + Send {
-    type Outcome: Textualizable + Send;
+#[cfg(feature = "trace")]
+pub trait CheckpointValue: Textualizable {}
+#[cfg(feature = "trace")]
+impl<T: Textualizable> CheckpointValue for T {}
+#[cfg(not(feature = "trace"))]
+pub trait CheckpointValue {}
+#[cfg(not(feature = "trace"))]
+impl<T> CheckpointValue for T {}
+pub trait Operable: CheckpointValue + Send {
+    type Outcome: CheckpointValue + Send;
     fn operate(self, scope: &Scope) -> impl Future<Output = Self::Outcome> + Send;
 }
 pub trait Runnable {
     fn run<O: Operable>(&self, operation: O) -> impl Future<Output = O::Outcome> + Send;
 }
-pub trait Memorizable: Textualizable + Send + Sized {
+pub trait Memorizable: CheckpointValue + Send + Sized {
     const TABLE: &'static str;
     fn identity(&self) -> String;
     fn encode(&self) -> Result<Vec<u8>, Failure>;
@@ -339,21 +348,25 @@ impl Operable for Atomic {
         }
     }
 }
+#[cfg(feature = "trace")]
 impl<R> Textualizable for Recall<R> {
     fn datom(&self) -> String {
         format!("Recall.«{}»", self.key)
     }
 }
+#[cfg(feature = "trace")]
 impl<R: Textualizable> Textualizable for Remember<R> {
     fn datom(&self) -> String {
         format!("Remember.{}", self.0.datom())
     }
 }
+#[cfg(feature = "trace")]
 impl<R> Textualizable for Forget<R> {
     fn datom(&self) -> String {
         format!("Forget.«{}»", self.key)
     }
 }
+#[cfg(feature = "trace")]
 impl Textualizable for Atomic {
     fn datom(&self) -> String {
         format!(
@@ -366,16 +379,19 @@ impl Textualizable for Atomic {
         )
     }
 }
+#[cfg(feature = "trace")]
 impl Textualizable for Failure {
     fn datom(&self) -> String {
         format!("Failure.«{self:?}»")
     }
 }
+#[cfg(feature = "trace")]
 impl Textualizable for () {
     fn datom(&self) -> String {
         "Succeeded".into()
     }
 }
+#[cfg(feature = "trace")]
 impl<T: Textualizable> Textualizable for Option<T> {
     fn datom(&self) -> String {
         match self {
@@ -384,6 +400,7 @@ impl<T: Textualizable> Textualizable for Option<T> {
         }
     }
 }
+#[cfg(feature = "trace")]
 impl<T: Textualizable> Textualizable for Result<T, Failure> {
     fn datom(&self) -> String {
         match self {
@@ -395,6 +412,7 @@ impl<T: Textualizable> Textualizable for Result<T, Failure> {
 
 pub mod ledger;
 
+#[cfg(feature = "trace")]
 impl Textualizable for Change {
     fn datom(&self) -> String {
         match self {

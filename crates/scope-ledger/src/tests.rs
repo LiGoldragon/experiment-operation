@@ -1,4 +1,5 @@
 use super::{ledger::*, *};
+use std::sync::Arc;
 
 struct Fixture {
     directory: tempfile::TempDir,
@@ -154,6 +155,7 @@ struct Paused {
     entered: tokio::sync::oneshot::Sender<()>,
     resume: tokio::sync::oneshot::Receiver<()>,
 }
+#[cfg(feature = "trace")]
 impl Textualizable for Paused {
     fn datom(&self) -> String {
         "Paused".into()
@@ -231,13 +233,94 @@ async fn whole_trace_matches_for_both_backends() {
             .await
             .unwrap();
         let trace = fixture.scope.trace()[offset..].to_vec();
-        assert_eq!(trace.len(), 18);
-        assert_eq!(trace[0], "{ [  ] Entered.Transfer.{ «alice» «bob» 5 } }");
-        assert_eq!(trace[1], "{ [ 0 ] Entered.Withdraw.{ «alice» 5 } }");
-        assert_eq!(trace[2], "{ [ 0 0 ] Entered.Recall.«alice» }");
-        assert_eq!(trace.last().unwrap(), "{ [  ] Yielded.Accepted.Succeeded }");
+        let alice = Account {
+            name: "alice".into(),
+            balance: 7,
+        };
+        let bob = Account {
+            name: "bob".into(),
+            balance: 17,
+        };
+        let alice_change = Change::Remember {
+            table: Account::TABLE,
+            key: "alice".into(),
+            bytes: alice.encode().unwrap(),
+        }
+        .datom();
+        let bob_change = Change::Remember {
+            table: Account::TABLE,
+            key: "bob".into(),
+            bytes: bob.encode().unwrap(),
+        }
+        .datom();
+        let expected = vec![
+            "{ [  ] Entered.Transfer.{ «alice» «bob» 5 } }".to_string(),
+            "{ [ 0 ] Entered.Withdraw.{ «alice» 5 } }".into(),
+            "{ [ 0 0 ] Entered.Recall.«alice» }".into(),
+            "{ [ 0 0 ] Yielded.Accepted.Some.{ «alice» 12 } }".into(),
+            "{ [ 0 1 ] Entered.Remember.{ «alice» 7 } }".into(),
+            format!("{{ [ 0 1 0 ] Entered.Atomic.[ {alice_change} ] }}"),
+            "{ [ 0 1 0 ] Yielded.Accepted.Succeeded }".into(),
+            "{ [ 0 1 ] Yielded.Accepted.Succeeded }".into(),
+            "{ [ 0 ] Yielded.Accepted.{ «alice» 7 } }".into(),
+            "{ [ 1 ] Entered.Deposit.{ «bob» 5 } }".into(),
+            "{ [ 1 0 ] Entered.Recall.«bob» }".into(),
+            "{ [ 1 0 ] Yielded.Accepted.Some.{ «bob» 12 } }".into(),
+            "{ [ 1 1 ] Entered.Remember.{ «bob» 17 } }".into(),
+            format!("{{ [ 1 1 0 ] Entered.Atomic.[ {bob_change} ] }}"),
+            "{ [ 1 1 0 ] Yielded.Accepted.Succeeded }".into(),
+            "{ [ 1 1 ] Yielded.Accepted.Succeeded }".into(),
+            "{ [ 1 ] Yielded.Accepted.{ «bob» 17 } }".into(),
+            "{ [  ] Yielded.Accepted.Succeeded }".into(),
+        ];
+        assert_eq!(trace, expected);
         traces.push(trace);
         fixture.scope.shutdown().await;
     }
     assert_eq!(traces[0], traces[1]);
+}
+
+struct ConcurrentDeposit {
+    barrier: Arc<tokio::sync::Barrier>,
+}
+#[cfg(feature = "trace")]
+impl Textualizable for ConcurrentDeposit {
+    fn datom(&self) -> String {
+        "ConcurrentDeposit".into()
+    }
+}
+impl Operable for ConcurrentDeposit {
+    type Outcome = Result<(), Failure>;
+    async fn operate(self, scope: &Scope) -> Self::Outcome {
+        let mut account = scope
+            .run(Recall::<Account> {
+                key: "alice".into(),
+                record: PhantomData,
+            })
+            .await?
+            .unwrap();
+        self.barrier.wait().await;
+        account.balance += 1;
+        scope.run(Remember(account)).await
+    }
+}
+#[tokio::test]
+async fn two_roots_can_lose_a_read_modify_write_update() {
+    for variant in [Variant::Tasks, Variant::Actors] {
+        let fixture = Fixture::prepare(variant).await;
+        let barrier = Arc::new(tokio::sync::Barrier::new(2));
+        let mut roots = Vec::new();
+        for _ in 0..2 {
+            let scope = fixture.scope.clone();
+            let operation = ConcurrentDeposit {
+                barrier: barrier.clone(),
+            };
+            roots.push(tokio::spawn(async move { scope.run(operation).await }));
+        }
+        for root in roots {
+            root.await.unwrap().unwrap();
+        }
+        assert_eq!(fixture.balance("alice").await, 13);
+        fixture.scope.shutdown().await;
+    }
 }

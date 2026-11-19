@@ -98,21 +98,25 @@ impl Operable for Transfer {
         Ok(())
     }
 }
+#[cfg(feature = "trace")]
 impl Textualizable for Account {
     fn datom(&self) -> String {
         format!("{{ «{}» {} }}", self.name, self.balance)
     }
 }
+#[cfg(feature = "trace")]
 impl Textualizable for Deposit {
     fn datom(&self) -> String {
         format!("Deposit.{{ «{}» {} }}", self.name, self.amount)
     }
 }
+#[cfg(feature = "trace")]
 impl Textualizable for Withdraw {
     fn datom(&self) -> String {
         format!("Withdraw.{{ «{}» {} }}", self.name, self.amount)
     }
 }
+#[cfg(feature = "trace")]
 impl Textualizable for Transfer {
     fn datom(&self) -> String {
         format!(

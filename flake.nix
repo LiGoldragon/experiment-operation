@@ -5,6 +5,7 @@
     cargoNix = ./Cargo.nix;
     memberChecks = { check, ... }: {
       scope-ledger = check "scope-ledger" [ "trace" ];
+      scope-ledger-plain = check "scope-ledger" [];
     };
   };
 }
