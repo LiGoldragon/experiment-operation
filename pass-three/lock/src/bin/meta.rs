@@ -1,3 +1,1 @@
-fn main() {
-    <trial_lock::MetaClient as trial_lock::TextRunning>::run();
-}
+fn main() { <trial_lock::MetaClient as trial_lock::TextRunning>::run(); }

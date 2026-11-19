@@ -1,10 +1,10 @@
 use operation_scope::*;
-use std::{path::Path, process::Stdio};
-use tokio::{
-    io::AsyncReadExt,
-    net::{UnixListener, UnixStream},
-    process::{Child, Command},
+use std::{
+    io::Read,
+    path::Path,
+    process::{Child, Command, Stdio},
 };
+use tokio::net::{UnixListener, UnixStream};
 use trial_ledger::*;
 const LIMIT: u32 = 1048576;
 fn config(root: &Path, pause: Option<Boundary>) -> Configuration {
@@ -25,12 +25,33 @@ struct Machine {
 }
 impl Machine {
     async fn stop(mut self) {
-        let _ = self.child.kill().await;
-        let _ = self.child.wait().await;
+        let _ = self.child.kill();
+        let _ = self.child.wait();
         if let Some(task) = self.traces.take() {
             task.abort();
         }
     }
+}
+impl Drop for Machine {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+        if let Some(task) = self.traces.take() {
+            task.abort();
+        }
+    }
+}
+async fn read_receipt(child: &mut Child) -> [u8; 1] {
+    let mut stdout = child.stdout.take().unwrap();
+    let (stdout, receipt) = tokio::task::spawn_blocking(move || {
+        let mut receipt = [0];
+        stdout.read_exact(&mut receipt).unwrap();
+        (stdout, receipt)
+    })
+    .await
+    .unwrap();
+    child.stdout = Some(stdout);
+    receipt
 }
 async fn ledger(root: &Path, pause: Option<Boundary>) -> Machine {
     for name in ["ledger.sock", "ledger.meta", "ledger.trace"] {
@@ -50,12 +71,9 @@ async fn ledger(root: &Path, pause: Option<Boundary>) -> Machine {
     let mut child = Command::new(env!("CARGO_BIN_EXE_trial-ledger-nexus"))
         .arg(path)
         .stdout(Stdio::piped())
-        .kill_on_drop(true)
         .spawn()
         .unwrap();
-    let stdout = child.stdout.as_mut().unwrap();
-    let mut receipt = [0];
-    stdout.read_exact(&mut receipt).await.unwrap();
+    let mut receipt = read_receipt(&mut child).await;
     let traces = if receipt[0] == 0 {
         let mut stream = UnixStream::connect(root.join("ledger.trace"))
             .await
@@ -66,7 +84,7 @@ async fn ledger(root: &Path, pause: Option<Boundary>) -> Machine {
                 assert!(TraceRecord::decode(&bytes).is_ok());
             }
         });
-        stdout.read_exact(&mut receipt).await.unwrap();
+        receipt = read_receipt(&mut child).await;
         Some(task)
     } else {
         None
@@ -87,17 +105,9 @@ async fn world(root: &Path, pause: Option<Boundary>, succeeds: bool) -> Machine 
     let mut child = Command::new(env!("CARGO_BIN_EXE_trial-world"))
         .arg(path)
         .stdout(Stdio::piped())
-        .kill_on_drop(true)
         .spawn()
         .unwrap();
-    let mut receipt = [0];
-    child
-        .stdout
-        .as_mut()
-        .unwrap()
-        .read_exact(&mut receipt)
-        .await
-        .unwrap();
+    let receipt = read_receipt(&mut child).await;
     assert_eq!(receipt, [1]);
     Machine {
         child,
@@ -159,13 +169,15 @@ async fn balance(root: &Path) -> i64 {
         other => panic!("{other:?}"),
     }
 }
-async fn boundary(listener: &UnixListener, expected: Boundary) {
+async fn boundary(listener: &UnixListener, expected: Boundary) -> UnixStream {
     let (mut stream, _) = listener.accept().await.unwrap();
     assert_eq!(
         Boundary::decode(&stream.read_frame(LIMIT).await.unwrap()).unwrap(),
         expected
     );
+    stream
 }
+
 #[tokio::test]
 async fn mismatched_greeting_refuses_before_reading_input() {
     let dir = tempfile::tempdir().unwrap();
@@ -213,7 +225,7 @@ async fn kill_ledger_at_each_boundary_and_resume_before_inputs() {
             )
             .await
         });
-        boundary(&observer, pause).await;
+        let _barrier = boundary(&observer, pause).await;
         machine.stop().await;
         pay.abort();
         let machine = ledger(&root, None).await;
@@ -231,7 +243,7 @@ async fn kill_ledger_at_each_boundary_and_resume_before_inputs() {
                 })
             )
             .await,
-            Output::Refused(_)
+            Output::Refused(Refused::Duplicate(_))
         ));
         machine.stop().await;
         world.stop().await;
@@ -265,7 +277,7 @@ async fn kill_world_before_and_after_journal_then_restart_both() {
                 )
                 .await
             });
-            boundary(&observer, pause.clone()).await;
+            let _barrier = boundary(&observer, pause.clone()).await;
             translator.stop().await;
             machine.stop().await;
             pay.abort();
@@ -360,7 +372,6 @@ async fn generated_text_clients_reach_ordinary_and_meta_sockets() {
         .arg(root.join("ledger.launch"))
         .arg(request)
         .output()
-        .await
         .unwrap();
     assert!(
         result.status.success(),
@@ -372,7 +383,6 @@ async fn generated_text_clients_reach_ordinary_and_meta_sockets() {
         .arg(root.join("ledger.launch"))
         .arg("MaxFrame.2048")
         .output()
-        .await
         .unwrap();
     assert!(result.status.success());
     let mut stream = UnixStream::connect(root.join("ledger.meta")).await.unwrap();
