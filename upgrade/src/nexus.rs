@@ -247,7 +247,7 @@ impl GeneratingNexus for NexusSchema {
         let canonical = signal_canonical
             .protosize()
             .map_err(|e| anyhow::anyhow!("{e:?}"))?
-            .textualize();
+            .print();
         let memory_digest = Sha256::digest(storage.print().as_bytes());
         let signal_digest = Sha256::digest(canonical.as_bytes());
         let fingerprints = format!(

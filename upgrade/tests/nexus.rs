@@ -194,3 +194,24 @@ fn complete_memory_and_manifest_publish_atomically_and_reject_tampering() {
     assert_eq!(new, bundle.current().unwrap());
     assert!(!directory.path().join("writer-lock").exists());
 }
+
+#[test]
+fn signal_stamp_uses_the_same_canonical_file_printer_as_memory() {
+    use ethos_zero::{Actualizing, File, Potential, Printable};
+    use sha2::{Digest, Sha256};
+    let schema = lock();
+    let signal = Potential::<File>::from(schema.signal.clone())
+        .actualize()
+        .unwrap();
+    let digest = Sha256::digest(signal.print().as_bytes());
+    assert!(
+        schema
+            .generate_nexus()
+            .unwrap()
+            .fingerprints
+            .lines()
+            .nth(1)
+            .unwrap()
+            .contains(&format!("{:?}", digest.as_slice()))
+    );
+}
