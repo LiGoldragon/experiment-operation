@@ -1,0 +1,16 @@
+Signal
+[]
+[ Create
+  Deposit
+  Transfer
+  Inspect
+  Pay
+  Subscribe ]
+[ Created
+  Deposited
+  Transferred
+  Account
+  PayOutcome
+  Subscribed
+  Refused ]
+[]

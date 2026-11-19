@@ -157,7 +157,7 @@ dependencies = [
 
 [[package]]
 name = "experiment-upgrade"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "datom-codec",
@@ -165,6 +165,7 @@ dependencies = [
  "protos",
  "redb",
  "rkyv",
+ "sha2",
  "tempfile",
 ]
 
@@ -420,6 +421,16 @@ dependencies = [
  "rkyv",
  "sha2",
  "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "operation-scope"
+version = "0.3.0"
+dependencies = [
+ "datom-codec",
+ "redb",
+ "rkyv",
  "tokio",
 ]
 
@@ -759,6 +770,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
 dependencies = [
  "once_cell",
+]
+
+[[package]]
+name = "trial-ledger"
+version = "0.3.0"
+dependencies = [
+ "datom-codec",
+ "experiment-upgrade",
+ "operation-scope",
+ "protos",
+ "rkyv",
+ "tempfile",
+ "tokio",
+ "trial-lock",
+]
+
+[[package]]
+name = "trial-lock"
+version = "0.3.0"
+dependencies = [
+ "datom-codec",
+ "experiment-upgrade",
+ "operation-scope",
+ "protos",
+ "rkyv",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]

@@ -1,0 +1,9 @@
+Memory
+[]
+[ HeldLock.{ LockName Integer } ]
+[ Lock.LockName
+  Release.LockName ]
+[ Locked
+  Released
+  Refused.[ Held Unknown ] ]
+[ LockName.String ]

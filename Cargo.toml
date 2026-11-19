@@ -1,3 +1,3 @@
 [workspace]
-members = ["crates/scope-ledger", "upgrade", "pass-two"]
+members = ["crates/scope-ledger", "upgrade", "pass-two", "pass-three/scope-library", "pass-three/ledger", "pass-three/lock"]
 resolver = "3"

@@ -1,0 +1,28 @@
+Memory
+[]
+[ Account.{ Name Balance }
+  Reservation.{ ReservationId Name Amount }
+  Payment.{ ReservationId Name Amount Boolean } ]
+[ Create.Account
+  Deposit.{ Name Amount }
+  Withdraw.{ Name Amount }
+  Transfer.{ From To Amount }
+  Reserve.Reservation
+  Settle.ReservationId
+  Release.ReservationId
+  Inspect.Name ]
+[ Created
+  Deposited.Balance
+  Withdrawn.Balance
+  Transferred
+  Reserved
+  Settled
+  Released
+  Account
+  Refused.[ Missing.Name Insufficient.Balance Invalid Duplicate.ReservationId ] ]
+[ Name.String
+  Balance.Integer
+  Amount.Integer
+  ReservationId.String
+  From.String
+  To.String ]

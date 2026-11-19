@@ -1,0 +1,43 @@
+[package]
+name = "trial-lock"
+version = "0.3.0"
+edition = "2024"
+[features]
+default = []
+trace = ["operation-scope/trace"]
+datom = ["dep:datom-codec", "operation-scope/datom", "dep:protos"]
+[dependencies]
+operation-scope = { path = "../scope-library" }
+tokio = { version = "=1.53.1", features = ["rt-multi-thread", "macros", "sync", "time", "io-util", "net", "signal", "tracing"] }
+rkyv = { version = "=0.8.18", default-features = false, features = ["std", "bytecheck", "little_endian", "pointer_width_32", "unaligned"] }
+datom-codec = { git = "https://github.com/LiGoldragon/datom-codec", rev = "09a0526", features = ["rkyv"], optional = true }
+[build-dependencies]
+experiment-upgrade = { path = "../../upgrade" }
+
+[[bin]]
+name = "trial-lock-nexus"
+path = "src/bin/nexus.rs"
+
+[dependencies.protos]
+git = "https://github.com/LiGoldragon/protos"
+rev = "c93b598"
+features = ["rkyv"]
+optional = true
+
+[[bin]]
+name = "trial-lock-client"
+path = "src/bin/client.rs"
+required-features = ["datom"]
+
+[[bin]]
+name = "trial-lock-meta"
+path = "src/bin/meta.rs"
+required-features = ["datom"]
+
+[[bin]]
+name = "trial-lock-debug"
+path = "src/bin/debug.rs"
+required-features = ["datom"]
+
+[dev-dependencies]
+tempfile = "=3.27.0"

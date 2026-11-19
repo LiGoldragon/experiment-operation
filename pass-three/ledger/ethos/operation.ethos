@@ -1,0 +1,7 @@
+Operation
+[]
+[ Pay.Reservation
+  Subscribe.Name ]
+[ PayOutcome.[ Paid Unpaid.Integer ]
+  Subscribed.Account ]
+[]

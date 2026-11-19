@@ -1,0 +1,6 @@
+Translation
+[]
+[ Remit.Reservation
+  Status.ReservationId ]
+[ RemitOutcome.[ Remitted Unremitted.Integer Unknown ] ]
+[]

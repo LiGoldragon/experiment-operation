@@ -63,10 +63,40 @@ rec {
       # File a bug if you depend on any for non-debug work!
       debug = internal.debugCrate { inherit packageId; };
     };
+    "operation-scope" = rec {
+      packageId = "operation-scope";
+      build = internal.buildRustCrateWithFeatures {
+        packageId = "operation-scope";
+      };
+
+      # Debug support which might change between releases.
+      # File a bug if you depend on any for non-debug work!
+      debug = internal.debugCrate { inherit packageId; };
+    };
     "scope-ledger" = rec {
       packageId = "scope-ledger";
       build = internal.buildRustCrateWithFeatures {
         packageId = "scope-ledger";
+      };
+
+      # Debug support which might change between releases.
+      # File a bug if you depend on any for non-debug work!
+      debug = internal.debugCrate { inherit packageId; };
+    };
+    "trial-ledger" = rec {
+      packageId = "trial-ledger";
+      build = internal.buildRustCrateWithFeatures {
+        packageId = "trial-ledger";
+      };
+
+      # Debug support which might change between releases.
+      # File a bug if you depend on any for non-debug work!
+      debug = internal.debugCrate { inherit packageId; };
+    };
+    "trial-lock" = rec {
+      packageId = "trial-lock";
+      build = internal.buildRustCrateWithFeatures {
+        packageId = "trial-lock";
       };
 
       # Debug support which might change between releases.
@@ -542,12 +572,17 @@ rec {
       };
       "experiment-upgrade" = rec {
         crateName = "experiment-upgrade";
-        version = "0.1.0";
+        version = "0.3.0";
         edition = "2024";
         crateBin = [
           {
             name = "experiment-upgrade";
             path = "src/main.rs";
+            requiredFeatures = [ ];
+          }
+          {
+            name = "memory-manifest";
+            path = "src/bin/memory-manifest.rs";
             requiredFeatures = [ ];
           }
         ];
@@ -583,11 +618,18 @@ rec {
             features = [ "std" "bytecheck" "little_endian" "pointer_width_32" "unaligned" ];
           }
           {
+            name = "sha2";
+            packageId = "sha2";
+          }
+          {
             name = "tempfile";
             packageId = "tempfile";
           }
         ];
-
+        features = {
+          "default" = [ "datom" ];
+        };
+        resolvedDefaultFeatures = [ "datom" "default" ];
       };
       "fastrand" = rec {
         crateName = "fastrand";
@@ -1457,6 +1499,40 @@ rec {
           "datom" = [ "dep:experiment-upgrade" "dep:ethos-zero" "dep:sha2" "dep:protos" "dep:tempfile" "dep:datom-codec" ];
           "default" = [ "datom" ];
           "trace" = [ "datom" ];
+        };
+        resolvedDefaultFeatures = [ "datom" "default" "trace" ];
+      };
+      "operation-scope" = rec {
+        crateName = "operation-scope";
+        version = "0.3.0";
+        edition = "2024";
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ./pass-three/scope-library; };
+        libName = "operation_scope";
+        dependencies = [
+          {
+            name = "datom-codec";
+            packageId = "datom-codec";
+            optional = true;
+            features = [ "rkyv" ];
+          }
+          {
+            name = "redb";
+            packageId = "redb";
+          }
+          {
+            name = "rkyv";
+            packageId = "rkyv";
+            usesDefaultFeatures = false;
+            features = [ "std" "bytecheck" "little_endian" "pointer_width_32" "unaligned" ];
+          }
+          {
+            name = "tokio";
+            packageId = "tokio";
+            features = [ "rt-multi-thread" "macros" "sync" "time" "io-util" "net" "signal" "tracing" ];
+          }
+        ];
+        features = {
+          "datom" = [ "dep:datom-codec" ];
         };
         resolvedDefaultFeatures = [ "datom" "default" "trace" ];
       };
@@ -2497,7 +2573,7 @@ rec {
           "tracing" = [ "dep:tracing" ];
           "windows-sys" = [ "dep:windows-sys" ];
         };
-        resolvedDefaultFeatures = [ "bytes" "default" "io-util" "libc" "macros" "mio" "net" "rt" "rt-multi-thread" "signal" "signal-hook-registry" "socket2" "sync" "time" "tokio-macros" "tracing" "windows-sys" ];
+        resolvedDefaultFeatures = [ "bytes" "default" "io-util" "libc" "macros" "mio" "net" "process" "rt" "rt-multi-thread" "signal" "signal-hook-registry" "socket2" "sync" "time" "tokio-macros" "tracing" "windows-sys" ];
       };
       "tokio-macros" = rec {
         crateName = "tokio-macros";
@@ -2616,6 +2692,170 @@ rec {
           "valuable" = [ "dep:valuable" ];
         };
         resolvedDefaultFeatures = [ "once_cell" "std" ];
+      };
+      "trial-ledger" = rec {
+        crateName = "trial-ledger";
+        version = "0.3.0";
+        edition = "2024";
+        crateBin = [
+          {
+            name = "trial-ledger-client";
+            path = "src/bin/client.rs";
+            requiredFeatures = [ "datom" ];
+          }
+          {
+            name = "trial-ledger-debug";
+            path = "src/bin/debug.rs";
+            requiredFeatures = [ "datom" ];
+          }
+          {
+            name = "trial-ledger-meta";
+            path = "src/bin/meta.rs";
+            requiredFeatures = [ "datom" ];
+          }
+          {
+            name = "trial-ledger-nexus";
+            path = "src/bin/nexus.rs";
+            requiredFeatures = [ ];
+          }
+          {
+            name = "trial-world";
+            path = "src/bin/world.rs";
+            requiredFeatures = [ ];
+          }
+        ];
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ./pass-three/ledger; };
+        libName = "trial_ledger";
+        dependencies = [
+          {
+            name = "datom-codec";
+            packageId = "datom-codec";
+            optional = true;
+            features = [ "rkyv" ];
+          }
+          {
+            name = "operation-scope";
+            packageId = "operation-scope";
+          }
+          {
+            name = "protos";
+            packageId = "protos";
+            optional = true;
+            features = [ "rkyv" ];
+          }
+          {
+            name = "rkyv";
+            packageId = "rkyv";
+            usesDefaultFeatures = false;
+            features = [ "std" "bytecheck" "little_endian" "pointer_width_32" "unaligned" ];
+          }
+          {
+            name = "tokio";
+            packageId = "tokio";
+            features = [ "rt-multi-thread" "macros" "sync" "time" "io-util" "net" "signal" "tracing" ];
+          }
+          {
+            name = "trial-lock";
+            packageId = "trial-lock";
+          }
+        ];
+        buildDependencies = [
+          {
+            name = "experiment-upgrade";
+            packageId = "experiment-upgrade";
+          }
+        ];
+        devDependencies = [
+          {
+            name = "tempfile";
+            packageId = "tempfile";
+          }
+          {
+            name = "tokio";
+            packageId = "tokio";
+            features = [ "process" ];
+          }
+        ];
+        features = {
+          "datom" = [ "dep:datom-codec" "operation-scope/datom" "dep:protos" ];
+          "trace" = [ "operation-scope/trace" ];
+        };
+        resolvedDefaultFeatures = [ "datom" "default" "trace" ];
+      };
+      "trial-lock" = rec {
+        crateName = "trial-lock";
+        version = "0.3.0";
+        edition = "2024";
+        crateBin = [
+          {
+            name = "trial-lock-client";
+            path = "src/bin/client.rs";
+            requiredFeatures = [ "datom" ];
+          }
+          {
+            name = "trial-lock-debug";
+            path = "src/bin/debug.rs";
+            requiredFeatures = [ "datom" ];
+          }
+          {
+            name = "trial-lock-meta";
+            path = "src/bin/meta.rs";
+            requiredFeatures = [ "datom" ];
+          }
+          {
+            name = "trial-lock-nexus";
+            path = "src/bin/nexus.rs";
+            requiredFeatures = [ ];
+          }
+        ];
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ./pass-three/lock; };
+        libName = "trial_lock";
+        dependencies = [
+          {
+            name = "datom-codec";
+            packageId = "datom-codec";
+            optional = true;
+            features = [ "rkyv" ];
+          }
+          {
+            name = "operation-scope";
+            packageId = "operation-scope";
+          }
+          {
+            name = "protos";
+            packageId = "protos";
+            optional = true;
+            features = [ "rkyv" ];
+          }
+          {
+            name = "rkyv";
+            packageId = "rkyv";
+            usesDefaultFeatures = false;
+            features = [ "std" "bytecheck" "little_endian" "pointer_width_32" "unaligned" ];
+          }
+          {
+            name = "tokio";
+            packageId = "tokio";
+            features = [ "rt-multi-thread" "macros" "sync" "time" "io-util" "net" "signal" "tracing" ];
+          }
+        ];
+        buildDependencies = [
+          {
+            name = "experiment-upgrade";
+            packageId = "experiment-upgrade";
+          }
+        ];
+        devDependencies = [
+          {
+            name = "tempfile";
+            packageId = "tempfile";
+          }
+        ];
+        features = {
+          "datom" = [ "dep:datom-codec" "operation-scope/datom" "dep:protos" ];
+          "trace" = [ "operation-scope/trace" ];
+        };
+        resolvedDefaultFeatures = [ "datom" "default" "trace" ];
       };
       "typenum" = rec {
         crateName = "typenum";
