@@ -1,0 +1,12 @@
+{ «Memory
+[]
+[ Account.{ Name.String Balance.Integer Status }
+  Status.[ Open Frozen Closed ] ]
+»
+ [ { 1 [ AddField.{ Account { Limit Integer } Integer.100 } ] }
+   { 2 [ RenameRecord.{ Account LedgerAccount } ] }
+   { 3 [ RenameField.{ LedgerAccount Balance Amount } ] }
+   { 4 [ RemoveField.{ LedgerAccount Limit } ] }
+   { 5 [ AddVariant.{ Status Dormant } ] }
+   { 6 [ RemoveVariant.{ Status Frozen Closed } ] }
+   { 7 [ Reshape.{ LedgerAccount [ { Name Text } { Amount Integer } { Status Enumeration.Status } { Note Text } ] «v7::LedgerAccount { r#name: old.r#name, r#amount: old.r#amount + 1, r#status: old.r#status.upgrade()?, r#note: String::from("reshaped") }» } ] } ] }

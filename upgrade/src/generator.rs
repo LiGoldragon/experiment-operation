@@ -24,7 +24,7 @@ impl DefaultRust for DefaultValue {
 impl RustGenerating for Manifest {
     fn generate_rust(&self) -> Result<String> {
         let schemas = self.schemas()?;
-        let mut output = String::from("// Generated from the edit manifest. Historical types are retained.\nuse experiment_upgrade::{ArchiveRecord, UpgradeInto, TableMigrating, Migrating, MigrationObserver};\n");
+        let mut output = String::from("// Generated from the edit manifest. Historical types are retained.\nuse experiment_upgrade::{UpgradeInto, TableMigrating, Migrating, MigrationObserver};\n");
         for (version, schema) in schemas.iter().enumerate() {
             writeln!(output, "pub mod v{version} {{")?;
             for enumeration in &schema.enumerations {
