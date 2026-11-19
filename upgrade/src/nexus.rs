@@ -6,7 +6,7 @@ use ethos_zero::{
 };
 use protos::{Enclosure, Protos, Protosizable, Textualizable};
 use sha2::{Digest, Sha256};
-use std::collections::{BTreeMap, btree_map::Entry};
+use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
 use std::fmt::Write;
 
 /// The four authored files of one Nexus, resolved as one declaration namespace.
@@ -243,11 +243,41 @@ impl GeneratingNexus for NexusSchema {
         let storage = Potential::<File>::from(storage_text)
             .actualize()
             .map_err(|e| anyhow::anyhow!("Memory storage declarations: {e:?}"))?;
-        let signal_canonical = format!("Signal.{{ {} }}", signal.sections.join(" "));
-        let canonical = signal_canonical
-            .protosize()
-            .map_err(|e| anyhow::anyhow!("{e:?}"))?
-            .print();
+        let File::Library(library) = &parsed else {
+            unreachable!()
+        };
+        let definitions = library
+            .types
+            .iter()
+            .map(|declaration| (declaration.declaration_name().to_owned(), declaration))
+            .collect::<BTreeMap<_, _>>();
+        let TypeDeclaration::Enum(_, inputs) = definitions["Input"] else {
+            unreachable!()
+        };
+        let TypeDeclaration::Enum(_, outputs) = definitions["Output"] else {
+            unreachable!()
+        };
+        let mut reached = BTreeSet::new();
+        definitions["Input"].reach(&definitions, &mut reached)?;
+        definitions["Output"].reach(&definitions, &mut reached)?;
+        // Keep every declaration the Signal itself writes, in its own order,
+        // then append its reachable definitions canonically by name.
+        let mut expanded_types = Vec::new();
+        for entry in &signal.entries[3] {
+            let name = entry.entry_name()?;
+            expanded_types.push(definitions[&name].clone());
+            reached.remove(&name);
+        }
+        for name in reached {
+            expanded_types.push(definitions[&name].clone());
+        }
+        let expanded = File::Signal(ethos_zero::Signal {
+            imports: Vec::new(),
+            queries: inputs.clone(),
+            responses: outputs.clone(),
+            types: expanded_types,
+        });
+        let canonical = expanded.print();
         let memory_digest = Sha256::digest(storage.print().as_bytes());
         let signal_digest = Sha256::digest(canonical.as_bytes());
         let fingerprints = format!(
@@ -581,5 +611,99 @@ impl SnakeNaming for str {
             out.extend(c.to_lowercase());
         }
         out
+    }
+}
+
+/// The canonical wire closure, independent of a declaration's authored file.
+trait ReachingDefinitions {
+    fn reach(
+        &self,
+        definitions: &BTreeMap<String, &TypeDeclaration>,
+        reached: &mut BTreeSet<String>,
+    ) -> Result<()>;
+}
+impl ReachingDefinitions for ethos_zero::Reference {
+    fn reach(
+        &self,
+        definitions: &BTreeMap<String, &TypeDeclaration>,
+        reached: &mut BTreeSet<String>,
+    ) -> Result<()> {
+        ensure!(
+            self.source.is_none(),
+            "external wire definitions require a repository resolver"
+        );
+        let name = self.name.as_ref();
+        if let Some(declaration) = definitions.get(name)
+            && reached.insert(name.to_owned())
+        {
+            declaration.reach(definitions, reached)?;
+        }
+        for argument in &self.arguments {
+            argument.reach(definitions, reached)?;
+        }
+        Ok(())
+    }
+}
+impl ReachingDefinitions for Position {
+    fn reach(
+        &self,
+        definitions: &BTreeMap<String, &TypeDeclaration>,
+        reached: &mut BTreeSet<String>,
+    ) -> Result<()> {
+        match self {
+            Self::Referenced(reference) => reference.reach(definitions, reached),
+            Self::Declared(declaration) => declaration.reach(definitions, reached),
+        }
+    }
+}
+impl ReachingDefinitions for ethos_zero::Variant {
+    fn reach(
+        &self,
+        definitions: &BTreeMap<String, &TypeDeclaration>,
+        reached: &mut BTreeSet<String>,
+    ) -> Result<()> {
+        match self {
+            Self::Bare(name) => {
+                if let Some(declaration) = definitions.get(name.as_ref())
+                    && reached.insert(name.as_ref().to_owned())
+                {
+                    declaration.reach(definitions, reached)?;
+                }
+            }
+            Self::Typed(_, reference) => reference.reach(definitions, reached)?,
+            Self::Struct(_, fields) => {
+                for field in fields {
+                    field.reach(definitions, reached)?;
+                }
+            }
+            Self::Enum(_, variants) => {
+                for variant in variants {
+                    variant.reach(definitions, reached)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+impl ReachingDefinitions for TypeDeclaration {
+    fn reach(
+        &self,
+        definitions: &BTreeMap<String, &TypeDeclaration>,
+        reached: &mut BTreeSet<String>,
+    ) -> Result<()> {
+        match self {
+            Self::Alias(_, reference) => reference.reach(definitions, reached)?,
+            Self::Struct(_, fields) => {
+                for field in fields {
+                    field.reach(definitions, reached)?;
+                }
+            }
+            Self::Enum(_, variants) => {
+                for variant in variants {
+                    variant.reach(definitions, reached)?;
+                }
+            }
+        }
+        Ok(())
     }
 }

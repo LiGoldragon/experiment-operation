@@ -97,3 +97,10 @@ variants paired positionally, and at least two inputs and outputs. Generated
 `Output::Runtime` adds the common runtime refusal. Ordinary binary dependencies
 contain no codec: Client, MetaClient and Debugger are gated by `datom` and take
 the binary launch-configuration path before their datom (debugger: path alone).
+
+The trial's additional ruling from Psyche core Opus is implemented: Signal's
+fingerprint hashes the canonical expanded contract, including all reachable
+payload definitions across the four authored files. Storage-only changes do
+not change that fingerprint. The generated standard Runtime payload still
+uses library Rust Failure, outside the authored Ethos closure; changing that
+implicit vocabulary is not yet included in the contract fingerprint.

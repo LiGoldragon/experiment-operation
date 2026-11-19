@@ -199,7 +199,8 @@ fn complete_memory_and_manifest_publish_atomically_and_reject_tampering() {
 fn signal_stamp_uses_the_same_canonical_file_printer_as_memory() {
     use ethos_zero::{Actualizing, File, Potential, Printable};
     use sha2::{Digest, Sha256};
-    let schema = lock();
+    let mut schema = lock();
+    schema.signal="Signal [] [ Lock Release ] [ Locked Released Refused ] [ Lock.{ LockName } LockName.String Locked.{} Refused.[ Held Unknown ] Release.{ LockName } Released.{} ]".into();
     let signal = Potential::<File>::from(schema.signal.clone())
         .actualize()
         .unwrap();
@@ -214,4 +215,20 @@ fn signal_stamp_uses_the_same_canonical_file_printer_as_memory() {
             .unwrap()
             .contains(&format!("{:?}", digest.as_slice()))
     );
+}
+
+#[test]
+fn signal_fingerprint_reaches_payloads_in_other_files() {
+    let mut schema = lock();
+    let before = schema.generate_nexus().unwrap().fingerprints;
+    schema.memory = schema.memory.replace("LockName.String", "LockName.Integer");
+    let changed = schema.generate_nexus().unwrap().fingerprints;
+    assert_ne!(before.lines().nth(1), changed.lines().nth(1));
+    let mut schema = lock();
+    schema.memory = schema
+        .memory
+        .replace("HeldLock.{ LockName }", "HeldLock.{ LockName Integer }");
+    let storage_only = schema.generate_nexus().unwrap().fingerprints;
+    assert_ne!(before.lines().next(), storage_only.lines().next());
+    assert_eq!(before.lines().nth(1), storage_only.lines().nth(1));
 }
