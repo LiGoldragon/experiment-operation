@@ -53,6 +53,16 @@ rec {
       # File a bug if you depend on any for non-debug work!
       debug = internal.debugCrate { inherit packageId; };
     };
+    "operation-ledger" = rec {
+      packageId = "operation-ledger";
+      build = internal.buildRustCrateWithFeatures {
+        packageId = "operation-ledger";
+      };
+
+      # Debug support which might change between releases.
+      # File a bug if you depend on any for non-debug work!
+      debug = internal.debugCrate { inherit packageId; };
+    };
     "scope-ledger" = rec {
       packageId = "scope-ledger";
       build = internal.buildRustCrateWithFeatures {
@@ -119,6 +129,23 @@ rec {
           "serde_core" = [ "dep:serde_core" ];
         };
         resolvedDefaultFeatures = [ "std" ];
+      };
+      "block-buffer" = rec {
+        crateName = "block-buffer";
+        version = "0.10.4";
+        edition = "2018";
+        sha256 = "0w9sa2ypmrsqqvc20nhwr75wbb5cjr4kkyhpjm1z1lv2kdicfy1h";
+        libName = "block_buffer";
+        authors = [
+          "RustCrypto Developers"
+        ];
+        dependencies = [
+          {
+            name = "generic-array";
+            packageId = "generic-array";
+          }
+        ];
+
       };
       "bumpalo" = rec {
         crateName = "bumpalo";
@@ -232,6 +259,68 @@ rec {
           "rustc-dep-of-std" = [ "core" ];
         };
       };
+      "cpufeatures" = rec {
+        crateName = "cpufeatures";
+        version = "0.2.17";
+        edition = "2018";
+        sha256 = "10023dnnaghhdl70xcds12fsx2b966sxbxjq5sxs49mvxqw5ivar";
+        authors = [
+          "RustCrypto Developers"
+        ];
+        dependencies = [
+          {
+            name = "libc";
+            packageId = "libc";
+            usesDefaultFeatures = false;
+            target = { target, features }: (target.name == "aarch64-linux-android");
+          }
+          {
+            name = "libc";
+            packageId = "libc";
+            usesDefaultFeatures = false;
+            target = { target, features }: (("aarch64" == target."arch" or null) && ("linux" == target."os" or null));
+          }
+          {
+            name = "libc";
+            packageId = "libc";
+            usesDefaultFeatures = false;
+            target = { target, features }: (("aarch64" == target."arch" or null) && ("apple" == target."vendor" or null));
+          }
+          {
+            name = "libc";
+            packageId = "libc";
+            usesDefaultFeatures = false;
+            target = { target, features }: (("loongarch64" == target."arch" or null) && ("linux" == target."os" or null));
+          }
+        ];
+
+      };
+      "crypto-common" = rec {
+        crateName = "crypto-common";
+        version = "0.1.7";
+        edition = "2018";
+        sha256 = "02nn2rhfy7kvdkdjl457q2z0mklcvj9h662xrq6dzhfialh2kj3q";
+        libName = "crypto_common";
+        authors = [
+          "RustCrypto Developers"
+        ];
+        dependencies = [
+          {
+            name = "generic-array";
+            packageId = "generic-array";
+            features = [ "more_lengths" ];
+          }
+          {
+            name = "typenum";
+            packageId = "typenum";
+          }
+        ];
+        features = {
+          "getrandom" = [ "rand_core/getrandom" ];
+          "rand_core" = [ "dep:rand_core" ];
+        };
+        resolvedDefaultFeatures = [ "std" ];
+      };
       "datom-codec" = rec {
         crateName = "datom-codec";
         version = "0.33.1";
@@ -294,6 +383,40 @@ rec {
           }
         ];
 
+      };
+      "digest" = rec {
+        crateName = "digest";
+        version = "0.10.7";
+        edition = "2018";
+        sha256 = "14p2n6ih29x81akj097lvz7wi9b6b9hvls0lwrv7b6xwyy0s5ncy";
+        authors = [
+          "RustCrypto Developers"
+        ];
+        dependencies = [
+          {
+            name = "block-buffer";
+            packageId = "block-buffer";
+            optional = true;
+          }
+          {
+            name = "crypto-common";
+            packageId = "crypto-common";
+          }
+        ];
+        features = {
+          "blobby" = [ "dep:blobby" ];
+          "block-buffer" = [ "dep:block-buffer" ];
+          "const-oid" = [ "dep:const-oid" ];
+          "core-api" = [ "block-buffer" ];
+          "default" = [ "core-api" ];
+          "dev" = [ "blobby" ];
+          "mac" = [ "subtle" ];
+          "oid" = [ "const-oid" ];
+          "rand_core" = [ "crypto-common/rand_core" ];
+          "std" = [ "alloc" "crypto-common/std" ];
+          "subtle" = [ "dep:subtle" ];
+        };
+        resolvedDefaultFeatures = [ "alloc" "block-buffer" "core-api" "default" "std" ];
       };
       "downcast-rs" = rec {
         crateName = "downcast-rs";
@@ -762,6 +885,34 @@ rec {
         };
         resolvedDefaultFeatures = [ "alloc" "async-await" "async-await-macro" "channel" "futures-channel" "futures-io" "futures-macro" "futures-sink" "io" "memchr" "sink" "slab" "std" ];
       };
+      "generic-array" = rec {
+        crateName = "generic-array";
+        version = "0.14.7";
+        edition = "2015";
+        sha256 = "16lyyrzrljfq424c3n8kfwkqihlimmsg5nhshbbp48np3yjrqr45";
+        libName = "generic_array";
+        authors = [
+          "Bartłomiej Kamiński <fizyk20@gmail.com>"
+          "Aaron Trent <novacrazy@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "typenum";
+            packageId = "typenum";
+          }
+        ];
+        buildDependencies = [
+          {
+            name = "version_check";
+            packageId = "version_check";
+          }
+        ];
+        features = {
+          "serde" = [ "dep:serde" ];
+          "zeroize" = [ "dep:zeroize" ];
+        };
+        resolvedDefaultFeatures = [ "more_lengths" ];
+      };
       "getrandom" = rec {
         crateName = "getrandom";
         version = "0.4.3";
@@ -1182,6 +1333,132 @@ rec {
           "std" = [ "alloc" ];
         };
         resolvedDefaultFeatures = [ "alloc" "default" "race" "std" ];
+      };
+      "operation-ledger" = rec {
+        crateName = "operation-ledger";
+        version = "0.2.0";
+        edition = "2024";
+        crateBin = [
+          {
+            name = "manifest";
+            path = "src/bin/manifest.rs";
+            requiredFeatures = [ "datom" ];
+          }
+          {
+            name = "operation-debug";
+            path = "src/bin/debug.rs";
+            requiredFeatures = [ "trace" ];
+          }
+          {
+            name = "operation-ledger";
+            path = "src/main.rs";
+            requiredFeatures = [ "datom" ];
+          }
+        ];
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ./pass-two; };
+        libName = "operation_ledger";
+        dependencies = [
+          {
+            name = "anyhow";
+            packageId = "anyhow";
+          }
+          {
+            name = "datom-codec";
+            packageId = "datom-codec";
+            optional = true;
+            features = [ "rkyv" ];
+          }
+          {
+            name = "ethos-zero";
+            packageId = "ethos-zero";
+            optional = true;
+          }
+          {
+            name = "experiment-upgrade";
+            packageId = "experiment-upgrade";
+            optional = true;
+          }
+          {
+            name = "kameo";
+            packageId = "kameo";
+          }
+          {
+            name = "mio";
+            packageId = "mio";
+            features = [ "log" ];
+          }
+          {
+            name = "protos";
+            packageId = "protos";
+            optional = true;
+            features = [ "rkyv" ];
+          }
+          {
+            name = "redb";
+            packageId = "redb";
+          }
+          {
+            name = "rkyv";
+            packageId = "rkyv";
+            usesDefaultFeatures = false;
+            features = [ "std" "bytecheck" "little_endian" "pointer_width_32" "unaligned" ];
+          }
+          {
+            name = "sha2";
+            packageId = "sha2";
+            optional = true;
+          }
+          {
+            name = "tempfile";
+            packageId = "tempfile";
+            optional = true;
+          }
+          {
+            name = "tokio";
+            packageId = "tokio";
+            features = [ "rt-multi-thread" "macros" "sync" "time" "io-util" "net" "signal" "tracing" ];
+          }
+        ];
+        buildDependencies = [
+          {
+            name = "anyhow";
+            packageId = "anyhow";
+          }
+          {
+            name = "datom-codec";
+            packageId = "datom-codec";
+            features = [ "rkyv" ];
+          }
+          {
+            name = "ethos-zero";
+            packageId = "ethos-zero";
+          }
+          {
+            name = "experiment-upgrade";
+            packageId = "experiment-upgrade";
+          }
+          {
+            name = "protos";
+            packageId = "protos";
+            features = [ "rkyv" ];
+          }
+          {
+            name = "sha2";
+            packageId = "sha2";
+          }
+        ];
+        devDependencies = [
+          {
+            name = "tempfile";
+            packageId = "tempfile";
+          }
+        ];
+        features = {
+          "datom" = [ "dep:experiment-upgrade" "dep:ethos-zero" "dep:sha2" "dep:protos" "dep:tempfile" "dep:datom-codec" ];
+          "default" = [ "datom" ];
+          "trace" = [ "datom" ];
+        };
+        resolvedDefaultFeatures = [ "datom" "default" "trace" ];
       };
       "pin-project-lite" = rec {
         crateName = "pin-project-lite";
@@ -1828,6 +2105,46 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" ];
       };
+      "sha2" = rec {
+        crateName = "sha2";
+        version = "0.10.9";
+        edition = "2018";
+        sha256 = "10xjj843v31ghsksd9sl9y12qfc48157j1xpb8v1ml39jy0psl57";
+        authors = [
+          "RustCrypto Developers"
+        ];
+        dependencies = [
+          {
+            name = "cfg-if";
+            packageId = "cfg-if";
+          }
+          {
+            name = "cpufeatures";
+            packageId = "cpufeatures";
+            target = { target, features }: (("aarch64" == target."arch" or null) || ("x86_64" == target."arch" or null) || ("x86" == target."arch" or null));
+          }
+          {
+            name = "digest";
+            packageId = "digest";
+          }
+        ];
+        devDependencies = [
+          {
+            name = "digest";
+            packageId = "digest";
+            features = [ "dev" ];
+          }
+        ];
+        features = {
+          "asm" = [ "sha2-asm" ];
+          "asm-aarch64" = [ "asm" ];
+          "default" = [ "std" ];
+          "oid" = [ "digest/oid" ];
+          "sha2-asm" = [ "dep:sha2-asm" ];
+          "std" = [ "digest/std" ];
+        };
+        resolvedDefaultFeatures = [ "default" "std" ];
+      };
       "signal-hook-registry" = rec {
         crateName = "signal-hook-registry";
         version = "1.4.8";
@@ -2300,6 +2617,16 @@ rec {
         };
         resolvedDefaultFeatures = [ "once_cell" "std" ];
       };
+      "typenum" = rec {
+        crateName = "typenum";
+        version = "1.20.1";
+        edition = "2018";
+        sha256 = "086s9ly0906kw5yw41249fba97w5zfxf03pyfwdkffvcprqfixdn";
+        features = {
+          "scale-info" = [ "dep:scale-info" ];
+          "scale_info" = [ "scale-info/derive" ];
+        };
+      };
       "unicode-ident" = rec {
         crateName = "unicode-ident";
         version = "1.0.24";
@@ -2370,6 +2697,16 @@ rec {
           "zerocopy" = [ "dep:zerocopy" ];
         };
         resolvedDefaultFeatures = [ "std" ];
+      };
+      "version_check" = rec {
+        crateName = "version_check";
+        version = "0.9.5";
+        edition = "2015";
+        sha256 = "0nhhi4i5x89gm911azqbn7avs9mdacw2i3vcz3cnmz3mv4rqz4hb";
+        authors = [
+          "Sergio Benitez <sb@sergio.bz>"
+        ];
+
       };
       "wasi" = rec {
         crateName = "wasi";

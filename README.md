@@ -1,4 +1,8 @@
-# Operation experiment — pass 1
+# Operation experiment
+
+The current revision-2 trial is [`pass-two`](pass-two/README.md): one ledger machine with transactional changes, asynchronous attempts, a traced schema upgrade and two subscription-holder implementations. The earlier crates remain as pass-1 evidence.
+
+## Pass 1
 
 Public experimental code for the operations-as-objects design. This repository is a trial, not a production Nexus release.
 
