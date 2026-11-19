@@ -1,0 +1,10 @@
+Operation
+[]
+[ Deposit.{ Name.String Amount.Integer }
+  Withdraw.{ Name Amount }
+  Transfer.{ From.String To.String Amount } ]
+[ Deposited.Balance
+  Withdrawn.Balance
+  Transferred
+  Refused.[ UnknownAccount.Name Insufficient.Balance ] ]
+[ Balance.Integer ]

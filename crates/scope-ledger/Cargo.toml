@@ -1,0 +1,17 @@
+[package]
+name = "scope-ledger"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = []
+trace = []
+
+[dependencies]
+tokio = { version = "=1.53.1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+kameo = "=0.22.2"
+redb = "=4.3.0"
+rkyv = { version = "=0.8.18", default-features = false, features = ["std", "bytecheck", "little_endian", "pointer_width_32", "unaligned"] }
+
+[dev-dependencies]
+tempfile = "3"

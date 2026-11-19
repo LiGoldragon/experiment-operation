@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/scope-ledger", "upgrade"]
+resolver = "3"
