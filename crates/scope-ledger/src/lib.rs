@@ -3,7 +3,7 @@ use kameo::{
     actor::{ActorRef, Spawn},
     message::{Context, Message},
 };
-use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
+use redb::{Database, ReadableDatabase, TableDefinition};
 #[cfg(feature = "trace")]
 use std::sync::Arc;
 use std::{future::Future, marker::PhantomData, path::Path};
